@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Input } from '../components/UI'
-import { signInWithGoogle, signUpWithEmail, signInWithEmail, db } from '../lib/firebase'
-import { doc, setDoc, getDoc } from 'firebase/firestore'
+import { signInWithGoogle, signUpWithEmail, signInWithEmail, supabase, db } from '../lib/supabase'
 import { useAuthStore } from '../store'
 import { Mail, Lock, User } from 'lucide-react'
 
@@ -21,31 +20,35 @@ export default function Auth() {
     setLoading(true)
     setError('')
     try {
-      const { user } = await signInWithGoogle()
+      const { data, error: authError } = await signInWithGoogle()
+      
+      if (authError) throw authError
+      
+      const user = data.user
       
       // Create or update user document
-      const userRef = doc(db, 'users', user.uid)
-      const userSnap = await getDoc(userRef)
+      const { data: existingUser } = await db.getUser(user.id)
       
-      if (!userSnap.exists()) {
-        await setDoc(userRef, {
-          name: user.displayName,
+      if (!existingUser) {
+        await db.createUser({
+          id: user.id,
           email: user.email,
-          photo: user.photoURL,
-          createdAt: new Date(),
+          name: user.user_metadata?.full_name || user.email?.split('@')[0],
+          photo_url: user.user_metadata?.avatar_url,
         })
       }
       
       setUser({
-        uid: user.uid,
+        uid: user.id,
         email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
+        displayName: user.user_metadata?.full_name || user.email?.split('@')[0],
+        photoURL: user.user_metadata?.avatar_url,
       })
       
       navigate('/dashboard')
     } catch (err) {
-      setError(err.message)
+      console.error('Google auth error:', err)
+      setError(err.message || 'Authentication failed')
     }
     setLoading(false)
   }
@@ -61,25 +64,38 @@ export default function Auth() {
         result = await signInWithEmail(email, password)
       } else {
         result = await signUpWithEmail(email, password)
-        if (result.user) {
-          await setDoc(doc(db, 'users', result.user.uid), {
-            name: name || email.split('@')[0],
+        
+        // Create user profile after signup
+        if (result.data?.user) {
+          await db.createUser({
+            id: result.data.user.id,
             email,
-            createdAt: new Date(),
+            name: name || email.split('@')[0],
           })
         }
       }
       
-      const { user } = result
+      if (result.error) throw result.error
+      
+      // For signup, check if email confirmation is needed
+      if (!isLogin && result.data?.session === null) {
+        setError('Please check your email to confirm your account!')
+        setLoading(false)
+        return
+      }
+      
+      const user = result.data.user || result.data.session?.user
+      
       setUser({
-        uid: user.uid,
+        uid: user.id,
         email: user.email,
-        displayName: name || user.displayName,
+        displayName: name || user.email?.split('@')[0],
       })
       
       navigate('/dashboard')
     } catch (err) {
-      setError(err.message)
+      console.error('Email auth error:', err)
+      setError(err.message || 'Authentication failed')
     }
     setLoading(false)
   }

@@ -1,13 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { Button, PhotoCard, Modal, Input } from '../components/UI'
-import { db, storage } from '../lib/firebase'
-import { doc, getDoc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { Button, PhotoCard, Modal } from '../components/UI'
+import { db, storage } from '../lib/supabase'
 import { extractEXIF, formatDate } from '../lib/exif'
 import { useAuthStore, useUIStore } from '../store'
 import { generateId } from '../lib/helpers'
-import { Upload, Grid, List, Map, Play, Settings, ArrowLeft, X } from 'lucide-react'
+import { Upload, Grid, List, Map, Play, ArrowLeft, X } from 'lucide-react'
 
 export default function Builder() {
   const { id } = useParams()
@@ -19,7 +17,7 @@ export default function Builder() {
   const [photos, setPhotos] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  const [viewMode, setViewMode] = useState('grid') // grid, list, map
+  const [viewMode, setViewMode] = useState('grid')
   const [dragActive, setDragActive] = useState(false)
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [uploadProgress, setUploadProgress] = useState({})
@@ -33,15 +31,19 @@ export default function Builder() {
   const loadTimeline = async () => {
     setLoading(true)
     try {
-      const docRef = doc(db, 'timelines', id)
-      const docSnap = await getDoc(docRef)
+      const { data, error } = await db.getTimeline(id)
       
-      if (docSnap.exists()) {
-        const data = docSnap.data()
-        setTimeline({ id: docSnap.id, ...data })
+      if (error) throw error
+      
+      if (data) {
+        setTimeline({ id: data.id, ...data })
+        
+        // Load photos for this timeline
+        const { data: photosData, error: photosError } = await db.getPhotos(id)
+        if (photosError) throw photosError
         
         // Sort photos by date
-        const sortedPhotos = (data.photos || []).sort((a, b) => 
+        const sortedPhotos = (photosData || []).sort((a, b) => 
           new Date(a.date) - new Date(b.date)
         )
         setPhotos(sortedPhotos)
@@ -76,7 +78,7 @@ export default function Builder() {
     if (files.length > 0) {
       await uploadFiles(files)
     }
-  }, [photos])
+  }, [photos, id])
   
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'))
@@ -97,11 +99,10 @@ export default function Builder() {
         setUploadProgress(prev => ({ ...prev, [photoId]: 0 }))
         
         try {
-          // Upload to Firebase Storage
-          const storagePath = `timelines/${id}/${photoId}-${file.name}`
-          const storageRef = ref(storage, storagePath)
-          await uploadBytes(storageRef, file)
-          const url = await getDownloadURL(storageRef)
+          // Upload to Supabase Storage
+          const { url, error: uploadError } = await storage.uploadPhoto(id, file)
+          
+          if (uploadError) throw uploadError
           
           // Extract EXIF data
           const exif = await extractEXIF(file)
@@ -111,11 +112,10 @@ export default function Builder() {
             id: photoId,
             url,
             name: file.name,
-            date: exif.date,
-            lat: exif.latitude,
-            lng: exif.longitude,
-            createdAt: new Date(),
-            exif: {
+            date: exif.date.toISOString(),
+            latitude: exif.latitude,
+            longitude: exif.longitude,
+            metadata: {
               make: exif.make,
               model: exif.model,
               fNumber: exif.fNumber,
@@ -123,6 +123,14 @@ export default function Builder() {
               iso: exif.iso,
             }
           }
+          
+          // Save to database
+          const { error: dbError } = await db.addPhoto({
+            timeline_id: id,
+            ...photo,
+          })
+          
+          if (dbError) throw dbError
           
           uploadedPhotos.push(photo)
           setPhotos(prev => [...prev, photo])
@@ -134,12 +142,9 @@ export default function Builder() {
         }
       }
       
-      // Update Firestore
       if (uploadedPhotos.length > 0) {
-        const timelineRef = doc(db, 'timelines', id)
-        await updateDoc(timelineRef, {
-          photos: arrayUnion(...uploadedPhotos),
-          updatedAt: serverTimestamp(),
+        // Update timeline count
+        await db.updateTimeline(id, {
           count: photos.length + uploadedPhotos.length,
         })
         
@@ -164,28 +169,22 @@ export default function Builder() {
     
     try {
       // Delete from storage
-      const storageRef = ref(storage, `timelines/${id}/${photoId}`)
-      try {
-        await deleteObject(storageRef)
-      } catch (e) {
-        // File might already be deleted
+      const photo = photos.find(p => p.id === photoId)
+      if (photo) {
+        const fileName = photo.url.split('/').pop()
+        await storage.deletePhoto(id, fileName)
       }
+      
+      // Delete from database
+      await db.deletePhoto(photoId)
       
       // Update state
       setPhotos(photos.filter(p => p.id !== photoId))
       
-      // Update Firestore (remove from array)
-      const timelineRef = doc(db, 'timelines', id)
-      const timeline = await getDoc(timelineRef)
-      if (timeline.exists()) {
-        const photos = timeline.data().photos || []
-        const filteredPhotos = photos.filter(p => p.id !== photoId)
-        await updateDoc(timelineRef, {
-          photos: filteredPhotos,
-          count: filteredPhotos.length,
-          updatedAt: serverTimestamp(),
-        })
-      }
+      // Update timeline count
+      await db.updateTimeline(id, {
+        count: photos.length - 1,
+      })
       
       addToast({ type: 'success', message: 'Photo deleted' })
       setSelectedPhoto(null)
@@ -313,7 +312,7 @@ export default function Builder() {
               ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4'
               : 'space-y-4'
           }>
-            {photos.map((photo, index) => (
+            {photos.map((photo) => (
               <div 
                 key={photo.id}
                 className={`relative group ${viewMode === 'list' ? 'flex gap-4 card p-4' : ''}`}
@@ -329,8 +328,8 @@ export default function Builder() {
                   <div className="flex-1 py-2">
                     <p className="font-medium truncate">{photo.name}</p>
                     <p className="text-sm text-ink-muted">{formatDate(photo.date)}</p>
-                    {photo.lat && (
-                      <p className="text-xs text-ink-muted">📍 {photo.lat.toFixed(2)}, {photo.lng?.toFixed(2)}</p>
+                    {photo.latitude && (
+                      <p className="text-xs text-ink-muted">📍 {photo.latitude.toFixed(2)}, {photo.longitude?.toFixed(2)}</p>
                     )}
                   </div>
                 )}
@@ -385,22 +384,22 @@ export default function Builder() {
                   <dt className="text-ink-muted">Date</dt>
                   <dd>{formatDate(selectedPhoto.date, 'full')}</dd>
                 </div>
-                {selectedPhoto.lat && (
+                {selectedPhoto.latitude && (
                   <div>
                     <dt className="text-ink-muted">Location</dt>
-                    <dd>{selectedPhoto.lat.toFixed(4)}, {selectedPhoto.lng?.toFixed(4)}</dd>
+                    <dd>{selectedPhoto.latitude.toFixed(4)}, {selectedPhoto.longitude?.toFixed(4)}</dd>
                   </div>
                 )}
-                {selectedPhoto.exif?.make && (
+                {selectedPhoto.metadata?.make && (
                   <div>
                     <dt className="text-ink-muted">Camera</dt>
-                    <dd>{selectedPhoto.exif.make} {selectedPhoto.exif.model}</dd>
+                    <dd>{selectedPhoto.metadata.make} {selectedPhoto.metadata.model}</dd>
                   </div>
                 )}
-                {selectedPhoto.exif?.fNumber && (
+                {selectedPhoto.metadata?.fNumber && (
                   <div>
                     <dt className="text-ink-muted">Settings</dt>
-                    <dd>{selectedPhoto.exif.fNumber} {selectedPhoto.exif.exposureTime} ISO {selectedPhoto.exif.iso}</dd>
+                    <dd>{selectedPhoto.metadata.fNumber} {selectedPhoto.metadata.exposureTime} ISO {selectedPhoto.metadata.iso}</dd>
                   </div>
                 )}
               </dl>

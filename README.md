@@ -33,9 +33,9 @@ A beautiful, production-ready family photo timeline web app built with React, Fi
 | **State** | Zustand |
 | **Routing** | React Router DOM v6 |
 | **Icons** | Lucide React |
-| **Auth** | Firebase Auth (Google OAuth + Email) |
-| **Database** | Cloud Firestore |
-| **Storage** | Firebase Storage |
+| **Auth** | Supabase Auth (Google OAuth + Email) |
+| **Database** | PostgreSQL (Supabase) |
+| **Storage** | Supabase Storage |
 | **Maps** | Leaflet + OpenStreetMap (free) |
 | **EXIF** | exifr |
 | **Animations** | Framer Motion + CSS |
@@ -55,13 +55,13 @@ cd echotimeline
 npm install
 ```
 
-### 2. Firebase Setup
+### 2. Supabase Setup
 
-1. Go to [Firebase Console](https://console.firebase.google.com) → Create project
-2. Enable **Authentication** → Sign-in methods → Google + Email/Password
-3. Create **Firestore Database** in production mode
-4. Enable **Storage**
-5. Copy your web app config
+1. Go to [Supabase](https://supabase.com) → Create project or use existing
+2. Enable **Authentication** → Sign-in methods → Google + Email
+3. Go to **SQL Editor** and run the database setup (see below)
+4. Create **Storage bucket** named `timelines` (make it public)
+5. Copy your project config
 
 ### 3. Environment Variables
 
@@ -69,24 +69,85 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` with your Firebase credentials:
+Edit `.env` with your Supabase credentials:
 
 ```
-VITE_FIREBASE_API_KEY=AIza...
-VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-VITE_FIREBASE_SENDER_ID=123456789
-VITE_FIREBASE_APP_ID=1:123:web:abc
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-### 4. Deploy Firestore Rules
+### 3. Environment Variables
 
 ```bash
-npm install -g firebase-tools
-firebase login
-firebase deploy --only firestore:rules,storage
+cp .env.example .env
 ```
+
+Edit `.env` with your Supabase credentials:
+
+```
+VITE_SUPABASE_URL=https://ymtzilzrbbxaduquechb.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### 4. Setup Database Tables
+
+Go to **SQL Editor** in Supabase and run:
+
+```sql
+-- Users table
+CREATE TABLE users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  photo_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Timelines table
+CREATE TABLE timelines (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  cover TEXT,
+  count INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Photos table
+CREATE TABLE photos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  timeline_id UUID REFERENCES timelines(id) ON DELETE CASCADE NOT NULL,
+  url TEXT NOT NULL,
+  name TEXT,
+  date TIMESTAMP WITH TIME ZONE,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  metadata JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable Row Level Security
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE timelines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE photos ENABLE ROW LEVEL SECURITY;
+
+-- Policies
+CREATE POLICY "Users can CRUD own timelines" ON timelines
+  FOR ALL USING (auth.uid() = owner_id);
+
+CREATE POLICY "Users can CRUD photos" ON photos
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM timelines WHERE id = photos.timeline_id AND owner_id = auth.uid())
+  );
+```
+
+### 5. Setup Storage
+
+1. Go to **Storage** → **New bucket**
+2. **Name:** `timelines`
+3. **Public:** ✅ Yes
+4. **RLS:** Disable (or create policy for authenticated users)
 
 ### 5. Run Locally
 

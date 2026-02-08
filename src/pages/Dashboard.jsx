@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, TimelineCard, Modal, Input, EmptyState } from '../components/UI'
-import { db } from '../lib/firebase'
-import { collection, query, where, getDocs, addDoc, deleteDoc, doc } from 'firebase/firestore'
+import { db, signOut, onAuthChange } from '../lib/supabase'
 import { useAuthStore, useUIStore } from '../store'
-import { Search, Plus, Trash2, LogOut } from 'lucide-react'
-import { signOut, onAuthChange } from '../lib/firebase'
+import { Search, Plus, Trash2 } from 'lucide-react'
 
 export default function Dashboard() {
   const [timelines, setTimelines] = useState([])
@@ -24,10 +22,10 @@ export default function Dashboard() {
     const unsubscribe = onAuthChange(async (authUser) => {
       if (authUser) {
         setUser({
-          uid: authUser.uid,
+          uid: authUser.id,
           email: authUser.email,
-          displayName: authUser.displayName,
-          photoURL: authUser.photoURL,
+          displayName: authUser.user_metadata?.full_name || authUser.email?.split('@')[0],
+          photoURL: authUser.user_metadata?.avatar_url,
         })
       } else {
         navigate('/auth')
@@ -45,17 +43,15 @@ export default function Dashboard() {
   const loadTimelines = async () => {
     setLoading(true)
     try {
-      const q = query(
-        collection(db, 'timelines'),
-        where('owner', '==', user.uid)
-      )
-      const snapshot = await getDocs(q)
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        updatedAt: doc.data().updatedAt?.toDate?.() || new Date(doc.data().createdAt?.seconds * 1000),
+      const { data, error } = await db.getTimelines(user.uid)
+      
+      if (error) throw error
+      
+      const sortedData = (data || []).map(t => ({
+        ...t,
+        updatedAt: new Date(t.updated_at || t.created_at),
       }))
-      setTimelines(data)
+      setTimelines(sortedData)
     } catch (error) {
       console.error('Error loading timelines:', error)
       addToast({ type: 'error', message: 'Failed to load timelines' })
@@ -69,23 +65,22 @@ export default function Dashboard() {
     
     setCreating(true)
     try {
-      const docRef = await addDoc(collection(db, 'timelines'), {
+      const { data, error } = await db.createTimeline({
         name: newTimelineName.trim(),
-        owner: user.uid,
+        owner_id: user.uid,
         cover: null,
         count: 0,
-        photos: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
       })
       
+      if (error) throw error
+      
       setTimelines([{
-        id: docRef.id,
+        id: data.id,
         name: newTimelineName.trim(),
-        owner: user.uid,
+        owner_id: user.uid,
         count: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        created_at: new Date(),
+        updated_at: new Date(),
       }, ...timelines])
       
       setCreateModal(false)
@@ -93,7 +88,7 @@ export default function Dashboard() {
       addToast({ type: 'success', message: 'Timeline created!' })
       
       // Navigate to builder
-      navigate(`/builder/${docRef.id}`)
+      navigate(`/builder/${data.id}`)
     } catch (error) {
       console.error('Error creating timeline:', error)
       addToast({ type: 'error', message: 'Failed to create timeline' })
@@ -106,7 +101,7 @@ export default function Dashboard() {
     if (!confirm('Are you sure you want to delete this timeline?')) return
     
     try {
-      await deleteDoc(doc(db, 'timelines', id))
+      await db.deleteTimeline(id)
       setTimelines(timelines.filter(t => t.id !== id))
       addToast({ type: 'success', message: 'Timeline deleted' })
     } catch (error) {
@@ -128,7 +123,7 @@ export default function Dashboard() {
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Spinner />
+        <div className="animate-spin w-8 h-8 border-4 border-gold border-t-transparent rounded-full" />
       </div>
     )
   }
@@ -169,7 +164,7 @@ export default function Dashboard() {
       {loading ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map(i => (
-            <Skeleton key={i} className="aspect-[4/3]" />
+            <div key={i} className="aspect-[4/3] bg-gold/20 rounded-xl animate-pulse" />
           ))}
         </div>
       ) : filteredTimelines.length > 0 ? (

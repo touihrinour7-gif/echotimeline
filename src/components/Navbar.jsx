@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import Logo from './Logo'
 import { useThemeStore, useAuthStore } from '../store'
-import { signOut } from '../lib/firebase'
+import { signOut } from '../lib/supabase'
 import { getInitials } from '../lib/helpers'
 
 export default function Navbar() {

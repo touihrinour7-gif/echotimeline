@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Button } from '../components/UI'
-import { db } from '../lib/firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { db } from '../lib/supabase'
 import { extractEXIF, formatDate } from '../lib/exif'
 import { ArrowLeft, Share2, Download, ChevronLeft, ChevronRight, X, Calendar, MapPin } from 'lucide-react'
 
@@ -21,20 +20,23 @@ export default function Viewer() {
   const loadTimeline = async () => {
     setLoading(true)
     try {
-      const docRef = doc(db, 'timelines', id)
-      const docSnap = await getDoc(docRef)
+      const { data, error } = await db.getTimeline(id)
       
-      if (docSnap.exists()) {
-        const data = docSnap.data()
-        setTimeline({ id: docSnap.id, ...data })
+      if (error) throw error
+      
+      if (data) {
+        setTimeline({ id: data.id, ...data })
+        
+        // Load photos
+        const { data: photosData, error: photosError } = await db.getPhotos(id)
+        if (photosError) throw photosError
         
         // Sort photos by date
-        const sortedPhotos = (data.photos || []).sort((a, b) => 
+        const sortedPhotos = (photosData || []).sort((a, b) => 
           new Date(a.date) - new Date(b.date)
         )
         setPhotos(sortedPhotos)
       } else {
-        // Timeline not found
         console.error('Timeline not found')
       }
     } catch (error) {
@@ -125,7 +127,7 @@ export default function Viewer() {
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => {
               navigator.clipboard.writeText(window.location.href)
-              alert('Link copied!')
+              addToast({ type: 'success', message: 'Link copied!' })
             }}>
               <Share2 className="w-4 h-4" />
             </Button>
@@ -160,16 +162,16 @@ export default function Viewer() {
                 {/* Info */}
                 <div className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4 text-sm text-ink-muted">
-                    {photo.lat && (
+                    {photo.latitude && (
                       <span className="flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
-                        {photo.lat.toFixed(2)}, {photo.lng?.toFixed(2)}
+                        {photo.latitude.toFixed(2)}, {photo.longitude?.toFixed(2)}
                       </span>
                     )}
-                    {photo.exif?.make && (
+                    {photo.metadata?.make && (
                       <span className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
-                        {photo.exif.make} {photo.exif.model}
+                        {photo.metadata.make} {photo.metadata.model}
                       </span>
                     )}
                   </div>
