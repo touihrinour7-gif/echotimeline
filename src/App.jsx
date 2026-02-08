@@ -10,7 +10,7 @@ import { TimelinePage } from './pages/TimelinePage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { TermsPage } from './pages/TermsPage'
 import { LoadingPage } from './components/LoadingSpinner'
-import { DemoModeProvider } from './lib/demoStorage'
+import { DemoModeProvider } from './lib/DemoModeProvider'
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth()

@@ -1,0 +1,6 @@
+Fix JSX file naming error
+
+- Rename demoStorage.js to DemoModeProvider.jsx
+- Create demoStorage.js with only utility functions
+- Update App.jsx import
+- Fix build error
