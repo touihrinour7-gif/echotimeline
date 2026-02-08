@@ -2,95 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  scroll-behavior: smooth;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
 }
 
-body {
-  @apply bg-sepia text-ink font-sans antialiased;
-}
-
-/* Dark mode */
-html.dark body {
-  @apply bg-sepia-dark text-ink-light;
-}
-
-/* Grain overlay effect */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.03;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  @apply bg-sepia-lighter;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-gold/40 rounded-full;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-gold/60;
-}
-
-/* Animations */
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-out forwards;
-}
-
-.animate-slide-up {
-  animation: slideUp 0.3s ease-out forwards;
-}
-
-.animate-bounce-soft {
-  animation: bounceSoft 0.5s ease-out forwards;
-}
-
-/* Card styles */
-.card {
-  @apply bg-white dark:bg-white/5 rounded-xl shadow-sm border border-gold/10;
-}
-
-.card-hover {
-  @apply card hover:shadow-lg hover:border-gold/30 transition-all duration-300;
-}
-
-/* Button styles */
-.btn {
-  @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all duration-200;
-}
-
-.btn-primary {
-  @apply btn bg-gold text-white hover:bg-gold/90 active:scale-95;
-}
-
-.btn-secondary {
-  @apply btn border border-gold text-gold hover:bg-gold/10;
-}
-
-.btn-ghost {
-  @apply btn text-ink hover:bg-gold/10;
-}
-
-/* Input styles */
-.input {
-  @apply w-full px-4 py-3 bg-white dark:bg-white/5 border border-gold/20 rounded-lg text-ink dark:text-ink-light placeholder-ink-muted/50 focus:outline-none focus:ring-2 focus:ring-gold/50 focus:border-transparent transition-all;
-}
-
-/* Glass effect */
-.glass {
-  @apply bg-white/80 dark:bg-sepia-dark/80 backdrop-blur-lg;
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 }

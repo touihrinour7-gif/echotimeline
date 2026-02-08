@@ -1,233 +1,306 @@
-# 🎞️ EchoTimeline
+# EchoTimeline - Photo Timeline App
 
-**Turn dusty albums into living timelines – free, private, forever.**
+A modern, AI-powered photo timeline application built with React and Supabase.
 
-A beautiful, production-ready family photo timeline web app built with React, Firebase, and Tailwind CSS.
+## 🌟 Features
 
-![EchoTimeline](https://img.shields.io/badge/status-beta-D4A574) ![License](https://img.shields.io/badge/license-MIT-green)
+- **Timeline Management**: Create and organize multiple photo timelines
+- **Photo Upload**: Upload and manage photos with metadata
+- **Demo Mode**: Works offline with localStorage (no backend required)
+- **Real Mode**: Full cloud integration with Supabase
+- **AI Auto-Sort**: Intelligent photo organization by date and metadata
+- **Face Clustering**: Group photos by detected faces (placeholder ready for AI APIs)
+- **Authentication**: Email/password and Google OAuth support
+- **Responsive Design**: Beautiful UI that works on all devices
 
----
+## 🚀 Live Demo
 
-## ✨ Features
-
-- **Drag & Drop Upload** — Bulk-upload hundreds of photos at once, lossless
-- **EXIF Auto-Date Extraction** — Photos auto-sort chronologically by embedded date
-- **Interactive Map Pins** — GPS coordinates become Leaflet/OpenStreetMap markers
-- **Family Vault** — Invite members with viewer/editor roles, E2E encrypted
-- **4K Video Export** — FFmpeg.wasm renders cinematic slideshows in-browser
-- **PDF Book Export** — jsPDF generates beautiful chronological photo books
-- **Voice Notes** — Record audio captions for each photo (placeholder ready)
-- **AI Face Clusters** — Transformers.js Florence-2 face grouping (placeholder ready)
-- **Dark Mode** — Persistent theme toggle with localStorage
-- **PWA** — Installable with offline support via service workers
-- **Micro-Interactions** — Fade-in, bounce, auto-scroll, hover effects
-- **Fully Responsive** — Mobile swipe, tablet split, desktop hover layouts
-
----
+Visit: [https://echotimeline.vercel.app](https://echotimeline.vercel.app)
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 18 + Vite + Tailwind CSS |
-| **State** | Zustand |
-| **Routing** | React Router DOM v6 |
-| **Icons** | Lucide React |
-| **Auth** | Supabase Auth (Google OAuth + Email) |
-| **Database** | PostgreSQL (Supabase) |
-| **Storage** | Supabase Storage |
-| **Maps** | Leaflet + OpenStreetMap (free) |
-| **EXIF** | exifr |
-| **Animations** | Framer Motion + CSS |
-| **Export** | jsPDF + FFmpeg.wasm |
-| **PWA** | vite-plugin-pwa |
-| **Hosting** | Vercel (frontend) + Firebase (backend) |
+- **Frontend**: React 18 + Vite
+- **Styling**: Tailwind CSS
+- **Backend**: Supabase (PostgreSQL + Auth + Storage)
+- **Routing**: React Router v6
+- **Notifications**: React Hot Toast
+- **Icons**: Lucide React
+- **Deployment**: Vercel
 
----
+## 📦 Installation
 
-## 🚀 Quick Start
-
-### 1. Clone & Install
-
-```bash://github.com/touihrinour
-git clone https7-gif/echotimeline.git
+```bash
+# Clone the repository
+git clone https://github.com/touihrinour7-gif/echotimeline.git
 cd echotimeline
+
+# Install dependencies
 npm install
-```
 
-### 2. Supabase Setup
-
-1. Go to [Supabase](https://supabase.com) → Create project or use existing
-2. Enable **Authentication** → Sign-in methods → Google + Email
-3. Go to **SQL Editor** and run the database setup (see below)
-4. Create **Storage bucket** named `timelines` (make it public)
-5. Copy your project config
-
-### 3. Environment Variables
-
-```bash
+# Copy environment variables
 cp .env.example .env
+
+# Start development server
+npm run dev
 ```
 
-Edit `.env` with your Supabase credentials:
+## 🔑 Environment Variables
 
-```
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-```
+Create a `.env` file in the root directory:
 
-### 3. Environment Variables
+```env
+# Required for Real Mode
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your Supabase credentials:
-
-```
-VITE_SUPABASE_URL=https://ymtzilzrbbxaduquechb.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+# Optional AI Features
+VITE_GOOGLE_VISION_API_KEY=your_google_vision_api_key
+VITE_HUGGINGFACE_API_KEY=your_huggingface_api_key
 ```
 
-### 4. Setup Database Tables
+## 🗄️ Supabase Setup
 
-Go to **SQL Editor** in Supabase and run:
+### 1. Create Tables
+
+Run these SQL commands in your Supabase SQL Editor:
 
 ```sql
--- Users table
-CREATE TABLE users (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT UNIQUE NOT NULL,
-  name TEXT,
-  photo_url TEXT,
+-- Create timelines table
+CREATE TABLE timelines (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  photo_count INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Timelines table
-CREATE TABLE timelines (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  cover TEXT,
-  count INTEGER DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Photos table
+-- Create photos table
 CREATE TABLE photos (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  timeline_id UUID REFERENCES timelines(id) ON DELETE CASCADE NOT NULL,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  timeline_id UUID REFERENCES timelines(id) ON DELETE CASCADE,
   url TEXT NOT NULL,
-  name TEXT,
+  storage_path TEXT,
+  title TEXT,
+  description TEXT,
   date TIMESTAMP WITH TIME ZONE,
-  latitude DOUBLE PRECISION,
-  longitude DOUBLE PRECISION,
-  metadata JSONB,
+  location TEXT,
+  face_descriptors JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Enable Row Level Security
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE timelines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE photos ENABLE ROW LEVEL SECURITY;
 
--- Policies
-CREATE POLICY "Users can CRUD own timelines" ON timelines
-  FOR ALL USING (auth.uid() = owner_id);
+-- Create policies for timelines
+CREATE POLICY "Users can view their own timelines"
+  ON timelines FOR SELECT
+  USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can CRUD photos" ON photos
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM timelines WHERE id = photos.timeline_id AND owner_id = auth.uid())
+CREATE POLICY "Users can create their own timelines"
+  ON timelines FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own timelines"
+  ON timelines FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own timelines"
+  ON timelines FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Create policies for photos
+CREATE POLICY "Users can view photos from their timelines"
+  ON photos FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM timelines
+      WHERE timelines.id = photos.timeline_id
+      AND timelines.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can add photos to their timelines"
+  ON photos FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM timelines
+      WHERE timelines.id = photos.timeline_id
+      AND timelines.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update photos in their timelines"
+  ON photos FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM timelines
+      WHERE timelines.id = photos.timeline_id
+      AND timelines.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete photos from their timelines"
+  ON photos FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM timelines
+      WHERE timelines.id = photos.timeline_id
+      AND timelines.user_id = auth.uid()
+    )
   );
 ```
 
-### 5. Setup Storage
+### 2. Create Storage Bucket
 
-1. Go to **Storage** → **New bucket**
-2. **Name:** `timelines`
-3. **Public:** ✅ Yes
-4. **RLS:** Disable (or create policy for authenticated users)
+1. Go to Storage in Supabase Dashboard
+2. Create a new bucket called `photos`
+3. Set it to **public**
+4. Add this storage policy:
 
-### 5. Run Locally
+```sql
+CREATE POLICY "Users can upload photos"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'photos' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
 
-```bash
-npm run dev
+CREATE POLICY "Users can view photos"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'photos');
+
+CREATE POLICY "Users can delete their photos"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'photos' AND
+  auth.uid()::text = (storage.foldername(name))[1]
+);
 ```
 
-Open [http://localhost:5173](http://localhost:5173)
+### 3. Enable Google OAuth (Optional)
 
----
+1. Go to Authentication → Providers
+2. Enable Google provider
+3. Add your Google Client ID and Secret
+4. Add authorized redirect URLs
 
-## 🌐 Deploy to Vercel
+## 🎯 Usage
 
-1. Push to GitHub
-2. Go to [vercel.com](https://vercel.com) → Import project
-3. Set environment variables in Vercel dashboard
-4. Deploy! Vercel auto-detects Vite
+### Demo Mode
 
-The `vercel.json` handles SPA routing and security headers.
+1. Click "Demo Mode" toggle on login page
+2. Click "Continue to Dashboard"
+3. All data stored in browser's localStorage
+4. No authentication required
+5. Perfect for testing and offline use
 
----
+### Real Mode
 
-## 📁 Project Structure
+1. Sign up with email/password or Google
+2. Create timelines
+3. Upload photos
+4. Data synced to Supabase cloud
+
+## 🤖 AI Features
+
+### Auto-Sort
+
+- Automatically organizes photos by date and location
+- Groups photos from the same event
+- Works without any API keys
+
+### Face Clustering (Placeholder)
+
+The app includes placeholder face clustering that can be activated with:
+
+#### Option 1: face-api.js (Browser-based, Free)
+- Download face detection models
+- Place in `/public/models` directory
+- Fully offline, no API needed
+
+#### Option 2: Google Cloud Vision API
+- Get API key: https://console.cloud.google.com/apis/credentials
+- 1,000 API calls/month FREE
+- Add `VITE_GOOGLE_VISION_API_KEY` to `.env`
+
+## 🚢 Deployment
+
+### Vercel (Recommended)
+
+1. Push code to GitHub
+2. Import project in Vercel
+3. Add environment variables
+4. Deploy!
+
+```bash
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## 🐛 Troubleshooting
+
+### Photos not uploading?
+- Check Supabase storage bucket is created and public
+- Verify storage policies are set correctly
+- Check file size limits
+
+### Authentication not working?
+- Verify `.env` variables are set
+- Check Supabase project URL and anon key
+- Ensure RLS policies are enabled
+
+### Demo mode data not persisting?
+- Check browser localStorage isn't disabled
+- Clear cache and try again
+- Don't use incognito/private mode
+
+## 📝 Project Structure
 
 ```
 echotimeline/
-├── public/
-│   └── favicon.svg          # Film reel E logo
 ├── src/
-│   ├── components/
-│   │   ├── Logo.jsx          # Brand logo SVG
-│   │   ├── Navbar.jsx        # Navigation + auth + theme toggle
-│   │   ├── Footer.jsx        # Site footer
-│   │   └── UI.jsx            # Modal, Toasts, PhotoCard, TimelineCard, etc.
-│   ├── hooks/
-│   │   └── index.js          # useAuth, useDarkMode, useInView, useFileDrop
-│   ├── lib/
-│   │   ├── firebase.js       # Firebase config + all DB/auth/storage helpers
-│   │   ├── exif.js           # EXIF extraction + date formatting
-│   │   └── helpers.js        # Utility functions
-│   ├── pages/
-│   │   ├── Landing.jsx       # SEO landing page with hero, features, pricing
-│   │   ├── Auth.jsx          # Login + Signup (Google OAuth + email)
-│   │   ├── Dashboard.jsx     # Timeline grid with search, create, delete
-│   │   ├── Builder.jsx       # Drag-drop upload, grid/timeline/map views
-│   │   └── Viewer.jsx        # Public timeline viewer with lightbox
-│   ├── store/
-│   │   └── index.js          # Zustand stores (auth, theme, timeline, UI)
-│   ├── index.css             # Tailwind + custom styles + grain overlay
-│   └── main.jsx              # App entry with router
-├── firestore.rules           # Firestore security rules
-├── storage.rules             # Storage security rules
-├── vercel.json               # Vercel deployment config
-├── tailwind.config.js        # Custom design system
-├── vite.config.js            # Vite + PWA config
-└── .env.example              # Environment template
+│   ├── components/       # Reusable components
+│   ├── contexts/         # React contexts (Auth)
+│   ├── lib/             # Utilities and helpers
+│   │   ├── supabase.js  # Supabase client
+│   │   ├── demoStorage.js
+│   │   ├── faceDetection.js
+│   │   └── autoSort.js
+│   ├── pages/           # Page components
+│   ├── App.jsx          # Main app component
+│   └── main.jsx         # Entry point
+├── public/              # Static assets
+└── package.json
 ```
 
----
+## 🤝 Contributing
 
-## 🎨 Design System
-
-| Token | Light | Dark |
-|-------|-------|------|
-| Background | `#F5EDE3` (old-paper beige) | `#121212` (deep black) |
-| Accent | `#D4A574` (aged gold) | `#FFD700` (warm gold) |
-| Text | `#2D1E12` (deep brown) | `#F5EDE3` (cream) |
-| Heading Font | Playfair Display | Playfair Display |
-| Body Font | Source Sans 3 | Source Sans 3 |
-
----
-
-## 📋 SEO Keywords
-
-- "digitize old photos timeline"
-- "family memory app"
-- "private photo chronology"
-
----
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## 📄 License
 
-MIT — build something beautiful for your family.
+MIT License - feel free to use this project for learning or production!
+
+## 🙏 Acknowledgments
+
+- [Supabase](https://supabase.com) - Backend as a Service
+- [Tailwind CSS](https://tailwindcss.com) - Styling
+- [Lucide Icons](https://lucide.dev) - Beautiful icons
+- [face-api.js](https://github.com/justadudewhohacks/face-api.js) - Face detection
+
+## 📧 Support
+
+Having issues? Open an issue on GitHub or contact the maintainers.
+
+---
+
+Built with ❤️ by the EchoTimeline team

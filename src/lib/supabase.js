@@ -1,177 +1,173 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Supabase configuration from environment variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ymtzilzrbbxaduquechb.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltdHppbHpyYmJ4YWR1cXVlY2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1NzkyOTksImV4cCI6MjA4NjE1NTI5OX0.qTE4WT90oEoXLWcPj1OrSC4DaKuugNOOtZ0mcT93q34'
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltdHppbHpyYmJ4YWR1cXVlY2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzg5ODA4MzQsImV4cCI6MjA1NDU1NjgzNH0.sL7pQa7vBMXEwqLpVZTBVPvvMQvBzqNwGvZxVxQdRhg'
 
-// Create Supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+})
 
-// Auth helpers
-export const signInWithGoogle = () => {
-  return supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: window.location.origin
-    }
-  })
+// Helper function to check if Supabase is configured
+export const isSupabaseConfigured = () => {
+  return !!(supabaseUrl && supabaseAnonKey && supabaseUrl !== 'YOUR_SUPABASE_URL')
 }
 
-export const signInWithEmail = (email, password) => {
-  return supabase.auth.signInWithPassword({ email, password })
-}
-
-export const signUpWithEmail = (email, password) => {
-  return supabase.auth.signUp({ 
-    email, 
-    password,
-    options: {
-      emailRedirectTo: window.location.origin
-    }
-  })
-}
-
-export const signOut = () => {
-  return supabase.auth.signOut()
-}
-
-export const onAuthChange = (callback) => {
-  return supabase.auth.onAuthStateChange((event, session) => {
-    callback(session?.user || null)
-  })
-}
-
-// Database helpers
-export const db = {
-  // Users
-  async getUser(id) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', id)
-      .single()
-    return { data, error }
-  },
+// Helper to handle Supabase errors
+export const handleSupabaseError = (error) => {
+  console.error('Supabase Error:', error)
   
-  async createUser(user) {
-    const { data, error } = await supabase
-      .from('users')
-      .insert(user)
-      .select()
-      .single()
-    return { data, error }
-  },
+  if (error?.message?.includes('Failed to fetch')) {
+    return 'Network error. Please check your connection.'
+  }
   
-  async updateUser(id, updates) {
-    const { data, error } = await supabase
-      .from('users')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
-    return { data, error }
-  },
+  if (error?.message?.includes('JWT')) {
+    return 'Session expired. Please sign in again.'
+  }
   
-  // Timelines
+  return error?.message || 'An unexpected error occurred'
+}
+
+// Database helpers with error handling
+export const dbHelpers = {
   async getTimelines(userId) {
-    const { data, error } = await supabase
-      .from('timelines')
-      .select('*')
-      .eq('owner_id', userId)
-      .order('created_at', { ascending: false })
-    return { data, error }
+    try {
+      const { data, error } = await supabase
+        .from('timelines')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: handleSupabaseError(error) }
+    }
   },
-  
-  async getTimeline(id) {
-    const { data, error } = await supabase
-      .from('timelines')
-      .select('*')
-      .eq('id', id)
-      .single()
-    return { data, error }
+
+  async createTimeline(userId, timeline) {
+    try {
+      const { data, error } = await supabase
+        .from('timelines')
+        .insert([{
+          user_id: userId,
+          ...timeline,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single()
+      
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: handleSupabaseError(error) }
+    }
   },
-  
-  async createTimeline(timeline) {
-    const { data, error } = await supabase
-      .from('timelines')
-      .insert(timeline)
-      .select()
-      .single()
-    return { data, error }
-  },
-  
+
   async updateTimeline(id, updates) {
-    const { data, error } = await supabase
-      .from('timelines')
-      .update({ ...updates, updated_at: new Date() })
-      .eq('id', id)
-      .select()
-      .single()
-    return { data, error }
+    try {
+      const { data, error } = await supabase
+        .from('timelines')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single()
+      
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: handleSupabaseError(error) }
+    }
   },
-  
+
   async deleteTimeline(id) {
-    const { error } = await supabase
-      .from('timelines')
-      .delete()
-      .eq('id', id)
-    return { error }
+    try {
+      const { error } = await supabase
+        .from('timelines')
+        .delete()
+        .eq('id', id)
+      
+      if (error) throw error
+      return { error: null }
+    } catch (error) {
+      return { error: handleSupabaseError(error) }
+    }
   },
-  
-  // Photos
+
   async getPhotos(timelineId) {
-    const { data, error } = await supabase
-      .from('photos')
-      .select('*')
-      .eq('timeline_id', timelineId)
-      .order('date', { ascending: true, nullsFirst: false })
-    return { data, error }
+    try {
+      const { data, error } = await supabase
+        .from('photos')
+        .select('*')
+        .eq('timeline_id', timelineId)
+        .order('date', { ascending: true })
+      
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: handleSupabaseError(error) }
+    }
   },
-  
-  async addPhoto(photo) {
-    const { data, error } = await supabase
-      .from('photos')
-      .insert(photo)
-      .select()
-      .single()
-    return { data, error }
+
+  async uploadPhoto(timelineId, file, metadata) {
+    try {
+      // Upload to storage
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${timelineId}/${Date.now()}.${fileExt}`
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('photos')
+        .upload(fileName, file)
+      
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('photos')
+        .getPublicUrl(fileName)
+
+      // Create photo record
+      const { data, error } = await supabase
+        .from('photos')
+        .insert([{
+          timeline_id: timelineId,
+          url: publicUrl,
+          storage_path: fileName,
+          ...metadata,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single()
+      
+      if (error) throw error
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: handleSupabaseError(error) }
+    }
   },
-  
-  async deletePhoto(id) {
-    const { error } = await supabase
-      .from('photos')
-      .delete()
-      .eq('id', id)
-    return { error }
+
+  async deletePhoto(id, storagePath) {
+    try {
+      // Delete from storage
+      if (storagePath) {
+        await supabase.storage
+          .from('photos')
+          .remove([storagePath])
+      }
+
+      // Delete from database
+      const { error } = await supabase
+        .from('photos')
+        .delete()
+        .eq('id', id)
+      
+      if (error) throw error
+      return { error: null }
+    } catch (error) {
+      return { error: handleSupabaseError(error) }
+    }
   }
 }
-
-// Storage helpers
-export const storage = {
-  async uploadPhoto(timelineId, file) {
-    const fileName = `${Date.now()}-${file.name}`
-    const path = `timelines/${timelineId}/${fileName}`
-    
-    const { data, error } = await supabase.storage
-      .from('timelines')
-      .upload(path, file)
-    
-    if (error) return { url: null, error }
-    
-    const { data: urlData } = supabase.storage
-      .from('timelines')
-      .getPublicUrl(path)
-    
-    return { url: urlData.publicUrl, error: null }
-  },
-  
-  async deletePhoto(timelineId, fileName) {
-    const path = `timelines/${timelineId}/${fileName}`
-    const { error } = await supabase.storage
-      .from('timelines')
-      .remove([path])
-    return { error }
-  }
-}
-
-export default supabase

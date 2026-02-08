@@ -1,30 +1,78 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import Navbar from './components/Navbar'
-import Footer from './components/Footer'
-import Landing from './pages/Landing'
-import Auth from './pages/Auth'
-import Dashboard from './pages/Dashboard'
-import Builder from './pages/Builder'
-import Viewer from './pages/Viewer'
-import NotFound from './pages/NotFound'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { LoginPage } from './pages/LoginPage'
+import { DashboardPage } from './pages/DashboardPage'
+import { TimelinePage } from './pages/TimelinePage'
+import { LoadingPage } from './components/LoadingSpinner'
 
-export default function App() {
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return <LoadingPage />
+  }
+
+  if (!user) {
+    return <Navigate to="/" replace />
+  }
+
+  return children
+}
+
+function App() {
   return (
-    <BrowserRouter>
-      <div className="min-h-screen flex flex-col">
-        <Navbar />
-        <main className="flex-1">
+    <ErrorBoundary>
+      <Router>
+        <AuthProvider>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: '#fff',
+                color: '#363636',
+              },
+              success: {
+                iconTheme: {
+                  primary: '#10b981',
+                  secondary: '#fff',
+                },
+              },
+              error: {
+                iconTheme: {
+                  primary: '#ef4444',
+                  secondary: '#fff',
+                },
+              },
+            }}
+          />
+          
           <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/builder/:id" element={<Builder />} />
-            <Route path="/viewer/:id" element={<Viewer />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/" element={<LoginPage />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/timeline/:id"
+              element={
+                <ProtectedRoute>
+                  <TimelinePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </main>
-        <Footer />
-      </div>
-    </BrowserRouter>
+        </AuthProvider>
+      </Router>
+    </ErrorBoundary>
   )
 }
+
+export default App

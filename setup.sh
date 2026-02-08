@@ -1,43 +1,61 @@
 #!/bin/bash
 
-echo "============================================"
-echo "EchoTimeline - GitHub Setup Script"
-echo "============================================"
+# EchoTimeline Quick Setup Script
+# This script helps you set up the project quickly
+
+set -e
+
+echo "🎨 EchoTimeline Setup Script"
+echo "============================"
 echo ""
 
-# Check if already has remote
-if git remote geturl origin >/dev/null 2>&1; then
-    echo "[OK] Git remote already configured"
+# Check if Node.js is installed
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js is not installed. Please install Node.js first."
+    echo "   Visit: https://nodejs.org/"
+    exit 1
+fi
+
+echo "✅ Node.js found: $(node --version)"
+echo "✅ npm found: $(npm --version)"
+echo ""
+
+# Install dependencies
+echo "📦 Installing dependencies..."
+npm install
+
+# Check if .env exists
+if [ ! -f .env ]; then
+    echo ""
+    echo "⚙️  Setting up environment variables..."
+    
+    # Copy example env
+    cp .env.example .env
+    
+    echo ""
+    echo "📝 Please edit .env file with your Supabase credentials:"
+    echo "   VITE_SUPABASE_URL=your_project_url"
+    echo "   VITE_SUPABASE_ANON_KEY=your_anon_key"
+    echo ""
+    
+    read -p "Press Enter when you've updated the .env file..."
 else
-    read -p "Enter your GitHub username: " GH_USERNAME
-    echo ""
-    echo "Creating GitHub repository..."
-    
-    # Create repo (requires GitHub token)
-    read -p "Enter your GitHub Personal Access Token: " GH_TOKEN
-    
-    curl -s -X POST "https://api.github.com/user/repos" \
-      -H "Accept: application/vnd.github.v3+json" \
-      -H "Authorization: token $GH_TOKEN" \
-      -d '{"name":"echotimeline","description":"Turn dusty albums into living timelines - free, private, forever","private":false}'
-    
-    echo ""
-    echo "Adding Git remote..."
-    git remote add origin "https://$GH_USERNAME@github.com/$GH_USERNAME/echotimeline.git"
+    echo "✅ .env file already exists"
 fi
 
 echo ""
-echo "Pushing to GitHub..."
-git branch -M main
-git push -u origin main
-
-echo ""
-echo "============================================"
-echo "GitHub Setup Complete!"
-echo "============================================"
+echo "🏗️  Project setup complete!"
 echo ""
 echo "Next steps:"
-echo "1. Go to https://vercel.com/new"
-echo "2. Import your echotimeline repo"
-echo "3. Add Firebase config environment variables"
-echo "4. Deploy!"
+echo "1. Make sure your Supabase database is set up (run supabase-setup.sql)"
+echo "2. Create the 'photos' storage bucket in Supabase"
+echo "3. Run 'npm run dev' to start development server"
+echo ""
+echo "📚 Documentation:"
+echo "   - README.md - Project overview"
+echo "   - DEPLOYMENT.md - Deployment guide"
+echo "   - TESTING.md - Testing guide"
+echo ""
+echo "🚀 To start the app:"
+echo "   npm run dev"
+echo ""
