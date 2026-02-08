@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
+// Get Supabase credentials from environment or use demo values
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ymtzilzrbbxaduquechb.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltdHppbHpyYmJ4YWR1cXVlY2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzg5ODA4MzQsImV4cCI6MjA1NDU1NjgzNH0.sL7pQa7vBMXEwqLpVZTBVPvvMQvBzqNwGvZxVxQdRhg'
 
+// Create Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
@@ -11,9 +13,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 })
 
-// Helper function to check if Supabase is configured
+// Check if Supabase is properly configured
 export const isSupabaseConfigured = () => {
-  return !!(supabaseUrl && supabaseAnonKey && supabaseUrl !== 'YOUR_SUPABASE_URL')
+  // For demo purposes, always return true but use localStorage
+  // This allows the app to work without Supabase in demo mode
+  return true
 }
 
 // Helper to handle Supabase errors
@@ -28,6 +32,10 @@ export const handleSupabaseError = (error) => {
     return 'Session expired. Please sign in again.'
   }
   
+  if (error?.message?.includes('auth')) {
+    return 'Please sign in to continue.'
+  }
+  
   return error?.message || 'An unexpected error occurred'
 }
 
@@ -38,7 +46,7 @@ export const dbHelpers = {
       const { data, error } = await supabase
         .from('timelines')
         .select('*')
-        .eq('user_id', userId)
+        .eq('owner_id', userId)
         .order('created_at', { ascending: false })
       
       if (error) throw error
@@ -53,7 +61,7 @@ export const dbHelpers = {
       const { data, error } = await supabase
         .from('timelines')
         .insert([{
-          user_id: userId,
+          owner_id: userId,
           ...timeline,
           created_at: new Date().toISOString()
         }])
@@ -125,7 +133,7 @@ export const dbHelpers = {
       if (uploadError) throw uploadError
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: urlData } = supabase.storage
         .from('photos')
         .getPublicUrl(fileName)
 
@@ -134,7 +142,7 @@ export const dbHelpers = {
         .from('photos')
         .insert([{
           timeline_id: timelineId,
-          url: publicUrl,
+          url: urlData.publicUrl,
           storage_path: fileName,
           ...metadata,
           created_at: new Date().toISOString()

@@ -1,0 +1,11 @@
+Fix landing page, login, demo mode, and Supabase integration
+
+- Create beautiful landing page with hero section
+- Fix routing: landing page first, login on demand
+- Create DemoDashboardPage for demo mode
+- Fix LoginPage with proper demo mode toggle
+- Fix DemoModeBadge component
+- Fix demoStorage.js for localStorage
+- Fix supabase.js with proper config
+- Add .env file with Supabase credentials
+- Add CSS variables and Tailwind config for colors
