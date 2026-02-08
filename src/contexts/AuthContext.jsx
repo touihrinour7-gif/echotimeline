@@ -15,44 +15,58 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [isDemoMode, setIsDemoMode] = useState(demoStorage.isDemoMode())
+  const [isDemoMode, setIsDemoMode] = useState(() => {
+    // Initialize from localStorage
+    return demoStorage.isDemoMode() || !isSupabaseConfigured()
+  })
 
   useEffect(() => {
-    // Check for existing session
-    const checkSession = async () => {
+    let subscription
+
+    const initAuth = async () => {
       try {
         if (isDemoMode || !isSupabaseConfigured()) {
-          // Demo mode - create a fake user
           setUser({
             id: 'demo-user',
-            email: 'demo@example.com',
+            email: 'demo@echotimeline.app',
             user_metadata: { full_name: 'Demo User' }
           })
           setLoading(false)
           return
         }
 
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Session error:', error)
+        }
+        
         setUser(session?.user ?? null)
+        setLoading(false)
+
+        const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            console.log('Auth state changed:', event)
+            setUser(session?.user ?? null)
+            
+            if (event === 'SIGNED_OUT') {
+              setLoading(false)
+            }
+          }
+        )
+
+        subscription = authSubscription
       } catch (error) {
-        console.error('Session check error:', error)
-        setUser(null)
-      } finally {
+        console.error('Auth initialization error:', error)
         setLoading(false)
       }
     }
 
-    checkSession()
+    initAuth()
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null)
-        setLoading(false)
-      }
-    )
-
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription?.unsubscribe()
+    }
   }, [isDemoMode])
 
   const toggleDemoMode = () => {
@@ -63,7 +77,7 @@ export const AuthProvider = ({ children }) => {
     if (newMode) {
       setUser({
         id: 'demo-user',
-        email: 'demo@example.com',
+        email: 'demo@echotimeline.app',
         user_metadata: { full_name: 'Demo User' }
       })
     } else {
@@ -74,59 +88,79 @@ export const AuthProvider = ({ children }) => {
   const signUp = async (email, password, fullName) => {
     try {
       if (isDemoMode) {
-        throw new Error('Sign up not available in demo mode')
+        return { data: null, error: 'Authentication not available in demo mode. Please switch to real mode.' }
+      }
+
+      if (!email || !password) {
+        return { data: null, error: 'Email and password are required' }
+      }
+
+      if (password.length < 6) {
+        return { data: null, error: 'Password must be at least 6 characters long' }
       }
 
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
         options: {
-          data: { full_name: fullName }
+          data: { full_name: fullName?.trim() || 'User' },
+          emailRedirectTo: window.location.origin
         }
       })
 
       if (error) throw error
       return { data, error: null }
     } catch (error) {
-      return { data: null, error: error.message }
+      console.error('Sign up error:', error)
+      return { data: null, error: error.message || 'Failed to sign up' }
     }
   }
 
   const signIn = async (email, password) => {
     try {
       if (isDemoMode) {
-        throw new Error('Sign in not available in demo mode. Switch to real mode.')
+        return { data: null, error: 'Authentication not available in demo mode. Please switch to real mode.' }
+      }
+
+      if (!email || !password) {
+        return { data: null, error: 'Email and password are required' }
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password
       })
 
       if (error) throw error
       return { data, error: null }
     } catch (error) {
-      return { data: null, error: error.message }
+      console.error('Sign in error:', error)
+      return { data: null, error: error.message || 'Failed to sign in' }
     }
   }
 
   const signInWithGoogle = async () => {
     try {
       if (isDemoMode) {
-        throw new Error('Google sign in not available in demo mode')
+        return { data: null, error: 'Google sign in not available in demo mode' }
       }
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: `${window.location.origin}/dashboard`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
         }
       })
 
       if (error) throw error
       return { data, error: null }
     } catch (error) {
-      return { data: null, error: error.message }
+      console.error('Google sign in error:', error)
+      return { data: null, error: error.message || 'Failed to sign in with Google' }
     }
   }
 
@@ -139,9 +173,12 @@ export const AuthProvider = ({ children }) => {
 
       const { error } = await supabase.auth.signOut()
       if (error) throw error
+      
+      setUser(null)
       return { error: null }
     } catch (error) {
-      return { error: error.message }
+      console.error('Sign out error:', error)
+      return { error: error.message || 'Failed to sign out' }
     }
   }
 

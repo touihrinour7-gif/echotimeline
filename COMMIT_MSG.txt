@@ -1,10 +1,7 @@
-Complete EchoTimeline v2 with face-api.js and demo mode
+Complete EchoTimeline v2 with all fixes
 
-- Face detection with face-api.js (free, runs in browser)
+- Landing page first (beautiful UI/UX)
 - Demo mode with localStorage
-- Error boundaries
-- Loading states
-- AuthContext for better auth handling
-- Auto-sort feature
-- All new pages: LoginPage, DashboardPage, TimelinePage
-- Updated Supabase integration
+- Login/signup functionality
+- Supabase integration
+- Beautiful UI components

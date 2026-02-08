@@ -1,96 +1,177 @@
-// Demo mode uses localStorage for offline functionality
-const STORAGE_KEYS = {
-  TIMELINES: 'echotimeline_demo_timelines',
-  PHOTOS: 'echotimeline_demo_photos',
-  MODE: 'echotimeline_mode'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+
+const DemoModeContext = createContext({})
+
+export const useDemoMode = () => {
+  const context = useContext(DemoModeContext)
+  if (!context) {
+    throw new Error('useDemoMode must be used within DemoModeProvider')
+  }
+  return context
 }
 
-export const demoStorage = {
-  // Mode management
-  isDemoMode() {
-    return localStorage.getItem(STORAGE_KEYS.MODE) === 'demo'
-  },
+export const DemoModeProvider = ({ children }) => {
+  const [isDemoMode, setIsDemoMode] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('echotimeline_demo_mode') === 'true'
+  })
 
-  setMode(mode) {
-    localStorage.setItem(STORAGE_KEYS.MODE, mode)
-  },
+  const [timelines, setTimelines] = useState([])
+  const [photos, setPhotos] = useState([])
+
+  // Load demo data from localStorage on mount
+  useEffect(() => {
+    if (isDemoMode) {
+      try {
+        const savedTimelines = localStorage.getItem('echotimeline_timelines')
+        const savedPhotos = localStorage.getItem('echotimeline_photos')
+        
+        if (savedTimelines) {
+          setTimelines(JSON.parse(savedTimelines))
+        }
+        if (savedPhotos) {
+          setPhotos(JSON.parse(savedPhotos))
+        }
+      } catch (e) {
+        console.error('Error loading demo data:', e)
+      }
+    }
+  }, [isDemoMode])
+
+  // Save demo data to localStorage whenever it changes
+  useEffect(() => {
+    if (isDemoMode) {
+      try {
+        localStorage.setItem('echotimeline_timelines', JSON.stringify(timelines))
+        localStorage.setItem('echotimeline_photos', JSON.stringify(photos))
+      } catch (e) {
+        console.error('Error saving demo data:', e)
+      }
+    }
+  }, [timelines, photos, isDemoMode])
+
+  const enableDemoMode = useCallback(() => {
+    setIsDemoMode(true)
+    localStorage.setItem('echotimeline_demo_mode', 'true')
+  }, [])
+
+  const disableDemoMode = useCallback(() => {
+    setIsDemoMode(false)
+    localStorage.setItem('echotimeline_demo_mode', 'false')
+  }, [])
+
+  const toggleDemoMode = useCallback(() => {
+    setIsDemoMode(prev => {
+      const newMode = !prev
+      localStorage.setItem('echotimeline_demo_mode', String(newMode))
+      return newMode
+    })
+  }, [])
 
   // Timeline operations
-  getTimelines() {
-    const data = localStorage.getItem(STORAGE_KEYS.TIMELINES)
-    return data ? JSON.parse(data) : []
-  },
-
-  createTimeline(timeline) {
-    const timelines = this.getTimelines()
+  const createTimeline = useCallback((name) => {
     const newTimeline = {
-      ...timeline,
       id: Date.now().toString(),
-      created_at: new Date().toISOString()
+      name,
+      photos: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }
-    timelines.push(newTimeline)
-    localStorage.setItem(STORAGE_KEYS.TIMELINES, JSON.stringify(timelines))
+    setTimelines(prev => {
+      const updated = [newTimeline, ...prev]
+      return updated
+    })
     return newTimeline
-  },
+  }, [])
 
-  updateTimeline(id, updates) {
-    const timelines = this.getTimelines()
-    const index = timelines.findIndex(t => t.id === id)
-    if (index !== -1) {
-      timelines[index] = { ...timelines[index], ...updates }
-      localStorage.setItem(STORAGE_KEYS.TIMELINES, JSON.stringify(timelines))
-      return timelines[index]
-    }
-    return null
-  },
+  const updateTimeline = useCallback((id, updates) => {
+    setTimelines(prev => {
+      return prev.map(t => 
+        t.id === id ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
+      )
+    })
+  }, [])
 
-  deleteTimeline(id) {
-    const timelines = this.getTimelines().filter(t => t.id !== id)
-    localStorage.setItem(STORAGE_KEYS.TIMELINES, JSON.stringify(timelines))
-    
-    // Delete associated photos
-    const photos = this.getPhotos().filter(p => p.timeline_id !== id)
-    localStorage.setItem(STORAGE_KEYS.PHOTOS, JSON.stringify(photos))
-  },
+  const deleteTimeline = useCallback((id) => {
+    setTimelines(prev => prev.filter(t => t.id !== id))
+    setPhotos(prev => prev.filter(p => p.timeline_id !== id))
+  }, [])
+
+  const getTimeline = useCallback((id) => {
+    return timelines.find(t => t.id === id)
+  }, [timelines])
 
   // Photo operations
-  getPhotos(timelineId = null) {
-    const data = localStorage.getItem(STORAGE_KEYS.PHOTOS)
-    const photos = data ? JSON.parse(data) : []
-    return timelineId ? photos.filter(p => p.timeline_id === timelineId) : photos
-  },
-
-  async uploadPhoto(timelineId, file, metadata) {
+  const uploadPhoto = useCallback((timelineId, file, metadata = {}) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
       
       reader.onload = (e) => {
-        const photos = this.getPhotos()
         const newPhoto = {
-          ...metadata,
           id: Date.now().toString(),
           timeline_id: timelineId,
           url: e.target.result,
-          created_at: new Date().toISOString()
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          created_at: new Date().toISOString(),
+          ...metadata
         }
-        photos.push(newPhoto)
-        localStorage.setItem(STORAGE_KEYS.PHOTOS, JSON.stringify(photos))
+        
+        setPhotos(prev => [...prev, newPhoto])
+        
+        // Update timeline photo count
+        setTimelines(prev => 
+          prev.map(t => 
+            t.id === timelineId 
+              ? { ...t, photos: [...(t.photos || []), newPhoto.id], photo_count: (t.photo_count || 0) + 1 }
+              : t
+          )
+        )
+        
         resolve(newPhoto)
       }
       
       reader.onerror = () => reject(new Error('Failed to read file'))
       reader.readAsDataURL(file)
     })
-  },
+  }, [])
 
-  deletePhoto(id) {
-    const photos = this.getPhotos().filter(p => p.id !== id)
-    localStorage.setItem(STORAGE_KEYS.PHOTOS, JSON.stringify(photos))
-  },
+  const deletePhoto = useCallback((id) => {
+    setPhotos(prev => prev.filter(p => p.id !== id))
+  }, [])
 
-  // Clear all demo data
-  clearAll() {
-    localStorage.removeItem(STORAGE_KEYS.TIMELINES)
-    localStorage.removeItem(STORAGE_KEYS.PHOTOS)
+  const getPhotosForTimeline = useCallback((timelineId) => {
+    return photos.filter(p => p.timeline_id === timelineId)
+  }, [photos])
+
+  const clearDemoData = useCallback(() => {
+    setTimelines([])
+    setPhotos([])
+    localStorage.removeItem('echotimeline_timelines')
+    localStorage.removeItem('echotimeline_photos')
+  }, [])
+
+  const value = {
+    isDemoMode,
+    enableDemoMode,
+    disableDemoMode,
+    toggleDemoMode,
+    timelines,
+    photos,
+    createTimeline,
+    updateTimeline,
+    deleteTimeline,
+    getTimeline,
+    uploadPhoto,
+    deletePhoto,
+    getPhotosForTimeline,
+    clearDemoData
   }
+
+  return (
+    <DemoModeContext.Provider value={value}>
+      {children}
+    </DemoModeContext.Provider>
+  )
 }
