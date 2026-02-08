@@ -1,4 +1,6 @@
 // Demo mode storage utilities for offline functionality
+// Also re-exports useDemoMode and DemoModeProvider
+
 const STORAGE_KEYS = {
   TIMELINES: 'echotimeline_timelines',
   PHOTOS: 'echotimeline_photos',
@@ -106,3 +108,6 @@ export const demoStorage = {
     localStorage.removeItem(STORAGE_KEYS.PHOTOS)
   }
 }
+
+// Re-export from DemoModeProvider for convenience
+export { useDemoMode, DemoModeProvider } from './DemoModeProvider'
