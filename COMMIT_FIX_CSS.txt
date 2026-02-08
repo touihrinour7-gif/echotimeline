@@ -1,0 +1,5 @@
+Fix CSS variables for Tailwind border-color classes
+
+- Add shadcn/ui CSS variables for colors
+- Update tailwind.config.js to use CSS variables
+- Fix border-border class error
