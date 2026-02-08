@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { dbHelpers } from '../lib/supabase'
 import { demoStorage } from '../lib/demoStorage'
 import { autoSort } from '../lib/autoSort'
+import { faceDetection } from '../lib/faceDetection'
 import { ArrowLeft, Upload, Trash2, Users, Sparkles, Calendar, MapPin, X } from 'lucide-react'
 import { LoadingPage, LoadingSpinner } from '../components/LoadingSpinner'
 import { DemoModeBadge } from '../components/DemoModeBadge'
@@ -169,21 +170,33 @@ export const TimelinePage = () => {
       return
     }
 
-    toast.loading('Detecting faces...')
+    toast.loading('Loading face detection models...')
     try {
-      // Simple placeholder - in production, you'd actually process images
-      const clusters = [
-        { id: 'cluster_1', photos: photos.slice(0, Math.ceil(photos.length / 2)).map(p => p.id) },
-        { id: 'cluster_2', photos: photos.slice(Math.ceil(photos.length / 2)).map(p => p.id) }
-      ].filter(c => c.photos.length > 0)
+      // Check if models are loaded
+      const status = await faceDetection.getStatus()
+      if (!status.loaded) {
+        toast.error('Face detection models not available')
+        toast.dismiss()
+        return
+      }
+
+      toast.loading('Detecting faces in photos...')
       
-      setFaceClusters(clusters)
-      setShowFaceClusters(true)
+      // Run real face clustering
+      const clusters = await faceDetection.clusterFaces(photos)
+      
       toast.dismiss()
-      toast.success(`Found ${clusters.length} face clusters!`)
+      
+      if (clusters.length === 0) {
+        toast.error('No faces detected in any photos')
+      } else {
+        setFaceClusters(clusters)
+        setShowFaceClusters(true)
+        toast.success(`Found ${clusters.length} face cluster${clusters.length > 1 ? 's' : ''}!`)
+      }
     } catch (error) {
       toast.dismiss()
-      toast.error('Face detection not available')
+      toast.error('Face detection failed: ' + error.message)
     }
   }
 

@@ -1,0 +1,6 @@
+Add REAL face detection with face-api.js
+
+- Load face-api.js from CDN (no npm dependency)
+- Downloaded models to public/models folder
+- Real face detection and clustering
+- Updated TimelinePage to use real detection
