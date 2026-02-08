@@ -1,0 +1,5 @@
+Remove unused face-api.js dependency
+
+- faceDetection.js was placeholder, not actually used
+- Removed unused import from TimelinePage
+- Fix build error
