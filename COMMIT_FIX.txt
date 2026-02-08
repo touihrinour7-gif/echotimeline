@@ -1,0 +1,5 @@
+Fix: border-border class error in Tailwind CSS
+
+- Replace invalid border-border with border border-gray-200
+- Add color CSS variables for theme
+- Update tailwind.config.js with color mappings

@@ -4,7 +4,7 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border border-gray-200;
   }
   
   body {
@@ -20,4 +20,37 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+}
+
+/* Custom theme variables */
+:root {
+  --background: #F5EDE3;
+  --foreground: #2D1E12;
+  --primary: #D4A574;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EBE5D5;
+  --secondary-foreground: #2D1E12;
+  --accent: #D4A574;
+  --accent-foreground: #FFFFFF;
+  --muted: #EBE5D5;
+  --muted-foreground: #5C4A3D;
+  --card: #FFFFFF;
+  --card-foreground: #2D1E12;
+  --border: #EBE5D5;
+}
+
+.dark {
+  --background: #121212;
+  --foreground: #F5EDE3;
+  --primary: #FFD700;
+  --primary-foreground: #121212;
+  --secondary: #1A1A1A;
+  --secondary-foreground: #F5EDE3;
+  --accent: #FFD700;
+  --accent-foreground: #121212;
+  --muted: #1A1A1A;
+  --muted-foreground: #A09385;
+  --card: #1A1A1A;
+  --card-foreground: #F5EDE3;
+  --border: #2A2A2A;
 }
