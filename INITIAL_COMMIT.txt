@@ -1,0 +1,15 @@
+Initial commit: EchoTimeline - Family photo timeline app
+
+Features:
+- React 18 + Vite + Tailwind
+- Firebase Auth/Storage/Firestore
+- Drag-drop bulk photo uploads
+- EXIF date extraction + AI auto-sort
+- Interactive map with Leaflet
+- Voice captions via MediaRecorder
+- 4K video export (FFmpeg.wasm)
+- PDF yearbook export (jsPDF)
+- Responsive: Mobile/Tablet/Desktop
+- Dark mode support
+- PWA ready
+- SEO optimized landing page

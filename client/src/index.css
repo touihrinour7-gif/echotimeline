@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-sepia: 245 237 227;
+    --color-gold: 212 165 116;
+    --color-text: 45 30 18;
+  }
+  
+  html.light {
+    --bg-primary: #F5EDE3;
+    --bg-secondary: #FAF8F5;
+    --text-primary: #2D1E12;
+    --text-secondary: #5C4A3D;
+    --accent: #D4A574;
+    --accent-hover: #C49464;
+    --border: #EBE5D5;
+  }
+  
+  html.dark {
+    --bg-primary: #121212;
+    --bg-secondary: #1A1A1A;
+    --text-primary: #F5EDE3;
+    --text-secondary: #A09385;
+    --accent: #FFD700;
+    --accent-hover: #FFE44D;
+    --border: #2A2A2A;
+  }
+  
+  body {
+    @apply bg-sepia-100 text-sepia-800 transition-colors duration-300;
+  }
+  
+  html.dark body {
+    @apply bg-midnight-100 text-sepia-100;
+  }
+  
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+  
+  html.light ::-webkit-scrollbar-track {
+    @apply bg-sepia-200;
+  }
+  
+  html.dark ::-webkit-scrollbar-track {
+    @apply bg-midnight-200;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-sepia-400 rounded-full;
+  }
+  
+  html.dark ::-webkit-scrollbar-thumb {
+    @apply bg-midnight-gold/50;
+  }
+}
+
+@layer components {
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-primary {
+    @apply btn bg-gradient-to-r from-sepia-500 to-sepia-600 text-white hover:from-sepia-600 hover:to-sepia-700 focus:ring-sepia-500;
+  }
+  
+  html.dark .btn-primary {
+    @apply bg-gradient-to-r from-midnight-gold to-yellow-600 text-midnight-100 hover:from-midnight-goldlight hover:to-yellow-500 focus:ring-midnight-gold;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-sepia-200 text-sepia-800 hover:bg-sepia-300 focus:ring-sepia-400;
+  }
+  
+  html.dark .btn-secondary {
+    @apply bg-midnight-200 text-sepia-100 hover:bg-midnight-300 focus:ring-midnight-gold;
+  }
+  
+  .btn-ghost {
+    @apply btn bg-transparent text-sepia-600 hover:bg-sepia-200;
+  }
+  
+  html.dark .btn-ghost {
+    @apply bg-transparent text-sepia-300 hover:bg-midnight-200;
+  }
+  
+  /* Cards */
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-sepia-200;
+  }
+  
+  html.dark .card {
+    @apply bg-midnight-100 border-midnight-200 shadow-midnight;
+  }
+  
+  .card-hover {
+    @apply card hover:shadow-md hover:border-sepia-300 transition-all duration-200;
+  }
+  
+  /* Inputs */
+  .input {
+    @apply w-full px-4 py-3 bg-white border border-sepia-300 rounded-lg text-sepia-800 placeholder-sepia-400 focus:outline-none focus:ring-2 focus:ring-sepia-500 focus:border-transparent transition-all;
+  }
+  
+  html.dark .input {
+    @apply bg-midnight-200 border-midnight-300 text-sepia-100 placeholder-midnight-400 focus:ring-midnight-gold;
+  }
+  
+  /* Glass effect */
+  .glass {
+    @apply bg-white/80 backdrop-blur-lg border border-white/20;
+  }
+  
+  html.dark .glass {
+    @apply bg-midnight-100/80 backdrop-blur-lg border-midnight-200/20;
+  }
+  
+  /* Timeline styles */
+  .timeline-line {
+    @apply absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-sepia-500 via-sepia-300 to-sepia-500;
+  }
+  
+  html.dark .timeline-line {
+    @apply from-midnight-gold via-yellow-600 to-midnight-gold;
+  }
+  
+  .timeline-node {
+    @apply absolute left-6 w-5 h-5 rounded-full border-4 border-sepia-100 bg-sepia-500;
+  }
+  
+  html.dark .timeline-node {
+    @apply border-midnight-100 bg-midnight-gold;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .animate-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+  
+  .slide-in-bottom {
+    animation: slideUp 0.3s ease-out forwards;
+  }
+}
+
+/* Print styles for yearbook export */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-break {
+    page-break-before: always;
+  }
+}
