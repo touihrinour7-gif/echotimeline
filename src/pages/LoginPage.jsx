@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Camera, Mail, Lock, User, AlertCircle, Check, Sparkles, Shield, Zap } from 'lucide-react'
+import { Mail, Lock, User, AlertCircle, Check, Sparkles, Shield, Zap } from 'lucide-react'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ModeToggle } from '../components/DemoModeBadge'
+import Logo from '../components/Logo'
 import toast from 'react-hot-toast'
 
 export const LoginPage = () => {
@@ -100,9 +101,7 @@ export const LoginPage = () => {
         <nav className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center">
-                <Camera className="w-6 h-6 text-white" />
-              </div>
+              <Logo size="lg" />
               <span className="text-xl font-bold text-gray-900">EchoTimeline</span>
             </div>
             <div className="flex items-center gap-4">

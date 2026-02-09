@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useDemoMode } from '../lib/demoStorage'
+import Logo from '../components/Logo'
 
 export function LandingPage() {
   const { enableDemoMode, isDemoMode } = useDemoMode()
@@ -51,9 +52,7 @@ export function LandingPage() {
       <header className="border-b border-border">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">E</span>
-            </div>
+            <Logo size="lg" />
             <span className="font-display font-bold text-xl">EchoTimeline</span>
           </div>
           <div className="flex items-center gap-3">
@@ -173,9 +172,7 @@ export function LandingPage() {
       <footer className="border-t border-border py-8 px-4">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold">E</span>
-            </div>
+            <Logo size="md" />
             <span className="font-display font-bold">EchoTimeline</span>
           </div>
           <p className="text-sm text-muted-foreground">
