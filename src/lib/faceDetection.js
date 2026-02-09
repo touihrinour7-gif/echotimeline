@@ -1,5 +1,5 @@
 // Face detection using face-api.js (globally loaded)
-// Fixed: Handle data URLs via canvas workaround
+// Fixed: Better handling for data URLs and blob conversion
 
 let faceapi = null
 let modelsLoaded = false
@@ -63,15 +63,25 @@ export const faceDetection = {
     return modelsLoadPromise
   },
 
-  // Convert data URL to Image element
-  async dataURLToImage(dataUrl) {
+  async blobToImage(blob) {
     return new Promise((resolve, reject) => {
       const img = new Image()
       img.crossOrigin = 'anonymous'
       img.onload = () => resolve(img)
       img.onerror = reject
-      img.src = dataUrl
+      img.src = URL.createObjectURL(blob)
     })
+  },
+
+  async dataURLtoImage(dataUrl) {
+    try {
+      const res = await fetch(dataUrl)
+      const blob = await res.blob()
+      return await this.blobToImage(blob)
+    } catch (error) {
+      console.error('Failed to convert data URL to image:', error)
+      return null
+    }
   },
 
   async detectFaces(imageElement) {
@@ -109,74 +119,87 @@ export const faceDetection = {
         await this.loadModels()
       }
       
+      console.log(`🔍 Processing ${photos.length} photos for face detection...`)
+      
       const faceClusters = []
-      const threshold = 0.6
+      const threshold = 0.5  // More lenient threshold
       const detectionsMap = []
       
-      console.log(`Processing ${photos.length} photos for face detection...`)
-      
-      for (const photo of photos) {
-        try {
-          let imgElement = null
-          
-          // Handle data URLs (demo mode) or regular URLs
-          if (photo.url && photo.url.startsWith('data:')) {
-            // For data URLs, create from canvas
-            imgElement = await this.loadImageFromDataURL(photo.url)
-          } else {
-            imgElement = await this.loadImageFromURL(photo.url)
+      // Process photos in smaller batches to avoid overwhelming
+      const batchSize = 5
+      for (let i = 0; i < photos.length; i += batchSize) {
+        const batch = photos.slice(i, i + batchSize)
+        
+        for (const photo of batch) {
+          try {
+            let imgElement = null
+            
+            if (photo.url && photo.url.startsWith('data:')) {
+              // Handle data URLs from localStorage
+              imgElement = await this.dataURLtoImage(photo.url)
+            } else {
+              // Handle regular URLs
+              imgElement = await this.loadImageFromURL(photo.url)
+            }
+            
+            if (!imgElement) {
+              console.warn(`⚠️ Could not load image ${photo.id}`)
+              continue
+            }
+            
+            // Detect faces with more lenient settings
+            const detections = await faceapi
+              .detectAllFaces(imgElement, new faceapi.TinyFaceDetectorOptions({
+                inputSize: 416,
+                scoreThreshold: 0.3
+              }))
+              .withFaceDescriptors()
+            
+            if (detections.length > 0) {
+              detectionsMap.push({
+                photoId: photo.id,
+                descriptor: detections[0].descriptor,
+                url: photo.url
+              })
+              console.log(`✅ Face detected in photo ${photo.id}`)
+            }
+          } catch (error) {
+            console.warn(`⚠️ Error processing photo ${photo.id}:`, error.message)
           }
-          
-          if (!imgElement) {
-            console.warn(`Could not load image ${photo.id}`)
-            continue
-          }
-          
-          // Use TinyFaceDetector for better performance
-          const detections = await faceapi
-            .detectAllFaces(imgElement, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 }))
-            .withFaceDescriptors()
-          
-          if (detections.length > 0) {
-            detectionsMap.push({
-              photoId: photo.id,
-              descriptor: detections[0].descriptor,
-              url: photo.url
-            })
-            console.log(`✅ Detected face in photo ${photo.id}`)
-          }
-        } catch (e) {
-          console.warn(`Could not detect faces in photo ${photo.id}:`, e.message)
+        }
+        
+        // Small delay between batches
+        if (i + batchSize < photos.length) {
+          await new Promise(resolve => setTimeout(resolve, 100))
         }
       }
       
-      console.log(`Finished processing. Found faces in ${detectionsMap.length} photos`)
+      console.log(`📊 Found faces in ${detectionsMap.length} photos out of ${photos.length}`)
       
       if (detectionsMap.length === 0) {
-        console.log('No faces detected - this may be due to:')
-        console.log('- Images too small')
-        console.log('- Faces too small or obscured')
-        console.log('- Poor image quality')
-        console.log('- CORS restrictions')
         return []
       }
       
-      // Cluster faces by similarity using Euclidean distance
+      // Cluster faces using Euclidean distance
       for (const { photoId, descriptor } of detectionsMap) {
         let foundCluster = false
         
         for (const cluster of faceClusters) {
-          const distance = faceapi.euclideanDistance(descriptor, cluster.centroid)
-          
-          if (distance < threshold) {
-            cluster.photos.push({
-              id: photoId,
-              url: cluster.photos.length > 0 ? cluster.photos[0].url : null
-            })
-            cluster.descriptors.push(descriptor)
-            cluster.centroid = this.calculateCentroid(cluster.descriptors)
-            foundCluster = true
-            break
+          try {
+            const distance = faceapi.euclideanDistance(descriptor, cluster.centroid)
+            
+            if (distance < threshold) {
+              cluster.photos.push({
+                id: photoId,
+                url: cluster.photos.length > 0 ? cluster.photos[0].url : null
+              })
+              cluster.descriptors.push(descriptor)
+              cluster.centroid = this.calculateCentroid(cluster.descriptors)
+              foundCluster = true
+              break
+            }
+          } catch (error) {
+            console.warn('Error comparing faces:', error)
           }
         }
         
@@ -190,36 +213,11 @@ export const faceDetection = {
         }
       }
       
-      console.log(`Created ${faceClusters.length} face clusters`)
+      console.log(`🎯 Created ${faceClusters.length} face cluster(s)`)
       return faceClusters
     } catch (error) {
       console.error('❌ Face clustering error:', error)
       return []
-    }
-  },
-
-  async loadImageFromDataURL(dataUrl) {
-    try {
-      // Convert data URL to blob then to object URL
-      const blob = await fetch(dataUrl).then(r => r.blob())
-      const objectUrl = URL.createObjectURL(blob)
-      
-      return new Promise((resolve, reject) => {
-        const img = new Image()
-        img.crossOrigin = 'anonymous'
-        img.onload = () => {
-          URL.revokeObjectURL(objectUrl)
-          resolve(img)
-        }
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl)
-          reject(new Error('Failed to load data URL'))
-        }
-        img.src = objectUrl
-      })
-    } catch (error) {
-      console.error('Data URL conversion failed:', error)
-      return null
     }
   },
 
@@ -228,7 +226,7 @@ export const faceDetection = {
       const img = new Image()
       img.crossOrigin = 'anonymous'
       img.onload = () => resolve(img)
-      img.onerror = () => reject(new Error('Failed to load image URL'))
+      img.onerror = () => reject(new Error('Failed to load image'))
       img.src = url
     })
   },
