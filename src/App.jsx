@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { TimelinePage } from './pages/TimelinePage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { TermsPage } from './pages/TermsPage'
+import { CookiesPage } from './pages/CookiesPage'
 import { LoadingPage } from './components/LoadingSpinner'
 import { DemoModeProvider } from './lib/DemoModeProvider'
 
@@ -51,6 +52,7 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/privacy" element={<PrivacyPage />} />
                 <Route path="/terms" element={<TermsPage />} />
+                <Route path="/cookies" element={<CookiesPage />} />
                 
                 {/* Protected Routes */}
                 <Route

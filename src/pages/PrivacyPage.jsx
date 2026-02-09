@@ -130,13 +130,27 @@ export const PrivacyPage = () => {
           </div>
 
           <div className="mt-12 pt-8 border-t">
-            <Link 
-              to="/" 
-              className="inline-flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Return to Home
-            </Link>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <Link 
+                to="/" 
+                className="inline-flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                Return to Home
+              </Link>
+              
+              <div className="flex items-center gap-4 text-sm">
+                <Link to="/terms" className="text-purple-600 hover:text-purple-700 transition-colors">
+                  Terms of Service
+                </Link>
+                <Link to="/cookies" className="text-purple-600 hover:text-purple-700 transition-colors">
+                  Cookies
+                </Link>
+                <a href="mailto:support@echotimeline.app" className="text-purple-600 hover:text-purple-700 transition-colors">
+                  Contact
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </div>
