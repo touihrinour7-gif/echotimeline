@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { dbHelpers } from '../lib/supabase'
 import { demoStorage } from '../lib/demoStorage'
 import { autoSort, faceDetection } from '../lib/faceDetection'
-import { ArrowLeft, Upload, Trash2, Users, Sparkles, Calendar, MapPin, X, Image } from 'lucide-react'
+import { ArrowLeft, Upload, Trash2, Users, Sparkles, Calendar, MapPin, X, Image, Download, Upload as UploadIcon } from 'lucide-react'
 import { LoadingPage, LoadingSpinner } from '../components/LoadingSpinner'
 import { DemoModeBadge } from '../components/DemoModeBadge'
 import toast from 'react-hot-toast'
@@ -23,6 +23,9 @@ export const TimelinePage = () => {
   const [faceClusters, setFaceClusters] = useState([])
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [faceApiLoaded, setFaceApiLoaded] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const importInputRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     if (!user) {
@@ -244,6 +247,101 @@ export const TimelinePage = () => {
     }
   }
 
+  const handleExport = () => {
+    if (photos.length === 0) {
+      toast.error('No photos to export')
+      return
+    }
+
+    const exportData = {
+      timeline: {
+        id: timeline.id,
+        title: timeline.title,
+        description: timeline.description,
+        created_at: timeline.created_at,
+        photo_count: photos.length
+      },
+      photos: photos.map(photo => ({
+        id: photo.id,
+        title: photo.title,
+        description: photo.description,
+        date: photo.date,
+        location: photo.location,
+        url: photo.url,
+        created_at: photo.created_at
+      })),
+      exported_at: new Date().toISOString(),
+      exported_from: 'EchoTimeline'
+    }
+
+    // Create and download JSON file
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `echotimeline-${timeline.title.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    toast.success('Timeline exported successfully!')
+  }
+
+  const handleImport = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      try {
+        const data = JSON.parse(event.target.result)
+
+        if (!data.photos || !Array.isArray(data.photos)) {
+          toast.error('Invalid import file format')
+          return
+        }
+
+        let importedCount = 0
+
+        for (const photo of data.photos) {
+          // Convert data URL back to blob-like object for demo mode
+          if (isDemoMode && photo.url && photo.url.startsWith('data:')) {
+            // For demo mode, we can use the data URL directly
+            const newPhoto = {
+              id: photo.id || Date.now().toString() + Math.random().toString(36).substring(7),
+              timeline_id: id,
+              url: photo.url,
+              title: photo.title || 'Imported photo',
+              description: photo.description || '',
+              date: photo.date || new Date().toISOString(),
+              location: photo.location || '',
+              created_at: new Date().toISOString()
+            }
+            demoStorage.uploadPhoto(id, { ...newPhoto, name: newPhoto.title }, newPhoto)
+            importedCount++
+          }
+        }
+
+        if (importedCount > 0) {
+          toast.success(`Imported ${importedCount} photo${importedCount > 1 ? 's' : ''}!`)
+          loadTimelineData() // Refresh the timeline
+        } else {
+          toast.error('No photos could be imported')
+        }
+      } catch (error) {
+        console.error('Import error:', error)
+        toast.error('Failed to import file. Please check the format.')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = '' // Reset input
+  }
+
+  const triggerImport = () => {
+    importInputRef.current?.click()
+  }
+
   if (loading) {
     return <LoadingPage text="Loading timeline..." />
   }
@@ -279,6 +377,7 @@ export const TimelinePage = () => {
                 <Upload className="w-5 h-5" />
                 <span>Upload</span>
                 <input
+                  ref={fileInputRef}
                   type="file"
                   multiple
                   accept="image/*"
@@ -287,6 +386,23 @@ export const TimelinePage = () => {
                   disabled={uploading}
                 />
               </label>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImport}
+                className="hidden"
+              />
+              {photos.length > 0 && (
+                <button
+                  onClick={triggerImport}
+                  className="cursor-pointer flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+                  title="Import from backup"
+                >
+                  <UploadIcon className="w-5 h-5" />
+                  <span className="hidden sm:inline">Import</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -310,6 +426,14 @@ export const TimelinePage = () => {
             >
               <Users className="w-4 h-4" />
               Face Clusters
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={photos.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              Export
             </button>
           </div>
         </div>
