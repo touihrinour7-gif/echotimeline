@@ -9,7 +9,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { TimelinePage } from './pages/TimelinePage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { TermsPage } from './pages/TermsPage'
-import { CookiesPage } from './pages/CookiesPage'
+import CookiesPage from './pages/CookiesPage'
 import { LoadingPage } from './components/LoadingSpinner'
 import { DemoModeProvider } from './lib/DemoModeProvider'
 
