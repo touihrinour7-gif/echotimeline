@@ -1,5 +1,60 @@
-// Real face detection using face-api.js loaded from CDN
-// This runs entirely in the browser, 100% free!
+// AI Auto-Sort using simple metadata-based sorting (free)
+// Falls back to basic date sorting
+
+export const autoSort = {
+  sortByMetadata(photos) {
+    // Simple sorting by date and location
+    return [...photos].sort((a, b) => {
+      // First by date
+      const dateA = new Date(a.date || a.created_at)
+      const dateB = new Date(b.date || b.created_at)
+
+      if (dateA.getTime() !== dateB.getTime()) {
+        return dateA - dateB
+      }
+
+      // Then by location if available
+      if (a.location && b.location && a.location !== b.location) {
+        return a.location.localeCompare(b.location)
+      }
+
+      return 0
+    })
+  },
+
+  groupByEvent(photos) {
+    // Group photos by temporal proximity (same day = same event)
+    const groups = []
+    let currentGroup = []
+    let lastDate = null
+
+    const sorted = this.sortByMetadata(photos)
+
+    sorted.forEach(photo => {
+      const photoDate = new Date(photo.date || photo.created_at)
+      photoDate.setHours(0, 0, 0, 0)
+
+      if (!lastDate || photoDate.getTime() !== lastDate.getTime()) {
+        if (currentGroup.length > 0) {
+          groups.push(currentGroup)
+        }
+        currentGroup = [photo]
+        lastDate = photoDate
+      } else {
+        currentGroup.push(photo)
+      }
+    })
+
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup)
+    }
+
+    return groups
+  }
+}
+
+// Face detection using face-api.js (loaded from CDN)
+// Runs entirely in the browser, 100% free!
 
 let faceapi = null
 let modelsLoaded = false
@@ -7,7 +62,13 @@ let modelsLoaded = false
 export const faceDetection = {
   async loadFaceAPI() {
     if (faceapi) return faceapi
-    
+
+    // Check if already loaded
+    if (typeof window !== 'undefined' && window.faceapi) {
+      faceapi = window.faceapi
+      return faceapi
+    }
+
     // Load face-api.js from CDN
     return new Promise((resolve, reject) => {
       const script = document.createElement('script')
@@ -24,19 +85,19 @@ export const faceDetection = {
 
   async loadModels() {
     if (modelsLoaded) return true
-    
+
     try {
       const api = await this.loadFaceAPI()
       const MODEL_URL = '/models'
-      
+
       await Promise.all([
         api.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         api.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
         api.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
       ])
-      
+
       modelsLoaded = true
-      console.log('✅ Face detection models loaded')
+      console.log('Face detection models loaded')
       return true
     } catch (error) {
       console.error('Failed to load face detection models:', error)
@@ -49,7 +110,7 @@ export const faceDetection = {
       if (!faceapi) {
         await this.loadFaceAPI()
       }
-      
+
       if (!modelsLoaded) {
         const loaded = await this.loadModels()
         if (!loaded) return []
@@ -68,18 +129,20 @@ export const faceDetection = {
   },
 
   async clusterFaces(photos) {
+    if (!photos || photos.length === 0) return []
+
     try {
       if (!faceapi) {
         await this.loadFaceAPI()
       }
-      
+
       if (!modelsLoaded) {
         await this.loadModels()
       }
 
       const faceClusters = []
       const threshold = 0.6
-      const processedImages = new Map()
+      const detectionsMap = []
 
       // Create Image elements for each photo
       const imageElements = []
@@ -87,7 +150,7 @@ export const faceDetection = {
         const img = new Image()
         img.crossOrigin = 'anonymous'
         img.src = photo.url
-        await new Promise((resolve, reject) => {
+        await new Promise((resolve) => {
           img.onload = resolve
           img.onerror = resolve // Continue even if load fails
         })
@@ -95,7 +158,6 @@ export const faceDetection = {
       }
 
       // Detect faces in all images
-      const detectionsMap = []
       for (const { photo, img } of imageElements) {
         try {
           const detections = await faceapi
@@ -103,7 +165,6 @@ export const faceDetection = {
             .withFaceDescriptors()
 
           if (detections.length > 0) {
-            // Use first face descriptor for clustering
             detectionsMap.push({
               photoId: photo.id,
               descriptor: detections[0].descriptor
@@ -120,11 +181,10 @@ export const faceDetection = {
 
         for (const cluster of faceClusters) {
           const distance = faceapi.euclideanDistance(descriptor, cluster.centroid)
-          
+
           if (distance < threshold) {
             cluster.photos.push(photoId)
             cluster.descriptors.push(descriptor)
-            // Update centroid
             cluster.centroid = this.calculateCentroid(cluster.descriptors)
             foundCluster = true
             break
@@ -165,7 +225,7 @@ export const faceDetection = {
   async getStatus() {
     return {
       loaded: modelsLoaded,
-      apiLoaded: faceapi !== null
+      apiLoaded: faceapi !== null && typeof faceapi !== 'undefined'
     }
   }
 }

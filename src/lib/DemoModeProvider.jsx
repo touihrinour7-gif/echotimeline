@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { demoStorage } from './demoStorage'
 
 const DemoModeContext = createContext({})
 
@@ -11,10 +10,14 @@ export const useDemoMode = () => {
   return context
 }
 
+const STORAGE_KEY = 'echotimeline_demo_mode'
+const TIMELINES_KEY = 'echotimeline_timelines'
+const PHOTOS_KEY = 'echotimeline_photos'
+
 export const DemoModeProvider = ({ children }) => {
   const [isDemoMode, setIsDemoMode] = useState(() => {
     if (typeof window === 'undefined') return false
-    return localStorage.getItem('echotimeline_demo_mode') === 'true'
+    return localStorage.getItem(STORAGE_KEY) === 'true'
   })
 
   const [timelines, setTimelines] = useState([])
@@ -24,9 +27,9 @@ export const DemoModeProvider = ({ children }) => {
   useEffect(() => {
     if (isDemoMode) {
       try {
-        const savedTimelines = localStorage.getItem('echotimeline_timelines')
-        const savedPhotos = localStorage.getItem('echotimeline_photos')
-        
+        const savedTimelines = localStorage.getItem(TIMELINES_KEY)
+        const savedPhotos = localStorage.getItem(PHOTOS_KEY)
+
         if (savedTimelines) {
           setTimelines(JSON.parse(savedTimelines))
         }
@@ -37,14 +40,14 @@ export const DemoModeProvider = ({ children }) => {
         console.error('Error loading demo data:', e)
       }
     }
-  }, [isDemoMode])
+  }, [])
 
   // Save demo data to localStorage whenever it changes
   useEffect(() => {
     if (isDemoMode) {
       try {
-        localStorage.setItem('echotimeline_timelines', JSON.stringify(timelines))
-        localStorage.setItem('echotimeline_photos', JSON.stringify(photos))
+        localStorage.setItem(TIMELINES_KEY, JSON.stringify(timelines))
+        localStorage.setItem(PHOTOS_KEY, JSON.stringify(photos))
       } catch (e) {
         console.error('Error saving demo data:', e)
       }
@@ -53,44 +56,38 @@ export const DemoModeProvider = ({ children }) => {
 
   const enableDemoMode = useCallback(() => {
     setIsDemoMode(true)
-    localStorage.setItem('echotimeline_demo_mode', 'true')
+    localStorage.setItem(STORAGE_KEY, 'true')
   }, [])
 
   const disableDemoMode = useCallback(() => {
     setIsDemoMode(false)
-    localStorage.setItem('echotimeline_demo_mode', 'false')
+    localStorage.setItem(STORAGE_KEY, 'false')
   }, [])
 
   const toggleDemoMode = useCallback(() => {
     setIsDemoMode(prev => {
       const newMode = !prev
-      localStorage.setItem('echotimeline_demo_mode', String(newMode))
+      localStorage.setItem(STORAGE_KEY, String(newMode))
       return newMode
     })
   }, [])
 
   // Timeline operations
-  const createTimeline = useCallback((name) => {
+  const createTimeline = useCallback((data) => {
     const newTimeline = {
       id: Date.now().toString(),
-      name,
-      photos: [],
+      ...data,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
-    setTimelines(prev => {
-      const updated = [newTimeline, ...prev]
-      return updated
-    })
+    setTimelines(prev => [newTimeline, ...prev])
     return newTimeline
   }, [])
 
   const updateTimeline = useCallback((id, updates) => {
-    setTimelines(prev => {
-      return prev.map(t => 
-        t.id === id ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
-      )
-    })
+    setTimelines(prev => prev.map(t =>
+      t.id === id ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
+    ))
   }, [])
 
   const deleteTimeline = useCallback((id) => {
@@ -106,7 +103,7 @@ export const DemoModeProvider = ({ children }) => {
   const uploadPhoto = useCallback((timelineId, file, metadata = {}) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
-      
+
       reader.onload = (e) => {
         const newPhoto = {
           id: Date.now().toString(),
@@ -118,21 +115,12 @@ export const DemoModeProvider = ({ children }) => {
           created_at: new Date().toISOString(),
           ...metadata
         }
-        
+
         setPhotos(prev => [...prev, newPhoto])
-        
-        // Update timeline photo count
-        setTimelines(prev => 
-          prev.map(t => 
-            t.id === timelineId 
-              ? { ...t, photos: [...(t.photos || []), newPhoto.id], photo_count: (t.photo_count || 0) + 1 }
-              : t
-          )
-        )
-        
+
         resolve(newPhoto)
       }
-      
+
       reader.onerror = () => reject(new Error('Failed to read file'))
       reader.readAsDataURL(file)
     })
@@ -149,8 +137,8 @@ export const DemoModeProvider = ({ children }) => {
   const clearDemoData = useCallback(() => {
     setTimelines([])
     setPhotos([])
-    localStorage.removeItem('echotimeline_timelines')
-    localStorage.removeItem('echotimeline_photos')
+    localStorage.removeItem(TIMELINES_KEY)
+    localStorage.removeItem(PHOTOS_KEY)
   }, [])
 
   const value = {

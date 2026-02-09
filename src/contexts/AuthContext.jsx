@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [isDemoMode, setIsDemoMode] = useState(() => {
-    // Initialize from localStorage
+    if (typeof window === 'undefined') return false
     return demoStorage.isDemoMode() || !isSupabaseConfigured()
   })
 
@@ -25,7 +25,11 @@ export const AuthProvider = ({ children }) => {
 
     const initAuth = async () => {
       try {
-        if (isDemoMode || !isSupabaseConfigured()) {
+        // Check Supabase configuration
+        const supabaseConfigured = isSupabaseConfigured()
+
+        if (!supabaseConfigured || isDemoMode) {
+          // Demo mode - set demo user
           setUser({
             id: 'demo-user',
             email: 'demo@echotimeline.app',
@@ -35,20 +39,22 @@ export const AuthProvider = ({ children }) => {
           return
         }
 
+        // Real mode - try to get session
         const { data: { session }, error } = await supabase.auth.getSession()
-        
+
         if (error) {
           console.error('Session error:', error)
         }
-        
+
         setUser(session?.user ?? null)
         setLoading(false)
 
+        // Listen for auth changes
         const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
             console.log('Auth state changed:', event)
             setUser(session?.user ?? null)
-            
+
             if (event === 'SIGNED_OUT') {
               setLoading(false)
             }
@@ -69,11 +75,32 @@ export const AuthProvider = ({ children }) => {
     }
   }, [isDemoMode])
 
+  // Listen for demo mode changes from DemoModeProvider
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const demo = demoStorage.isDemoMode()
+      setIsDemoMode(demo)
+
+      if (demo) {
+        setUser({
+          id: 'demo-user',
+          email: 'demo@echotimeline.app',
+          user_metadata: { full_name: 'Demo User' }
+        })
+      } else {
+        setUser(null)
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [])
+
   const toggleDemoMode = () => {
     const newMode = !isDemoMode
     setIsDemoMode(newMode)
-    demoStorage.setMode(newMode ? 'demo' : 'real')
-    
+    demoStorage.setMode(newMode)
+
     if (newMode) {
       setUser({
         id: 'demo-user',
@@ -173,7 +200,7 @@ export const AuthProvider = ({ children }) => {
 
       const { error } = await supabase.auth.signOut()
       if (error) throw error
-      
+
       setUser(null)
       return { error: null }
     } catch (error) {

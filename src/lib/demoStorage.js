@@ -1,7 +1,12 @@
 // Demo mode storage utilities for offline functionality
-// Also re-exports useDemoMode and DemoModeProvider
 
 const STORAGE_KEYS = {
+  TIMELINES: 'echotimeline_timelines',
+  PHOTOS: 'echotimeline_photos',
+  MODE: 'echotimeline_demo_mode'
+}
+
+const STORAGE_KEYS_DEPRECATED = {
   TIMELINES: 'echotimeline_timelines',
   PHOTOS: 'echotimeline_photos',
   MODE: 'echotimeline_demo_mode'
@@ -11,11 +16,14 @@ export const demoStorage = {
   // Mode management
   isDemoMode() {
     if (typeof window === 'undefined') return false
-    return localStorage.getItem(STORAGE_KEYS.MODE) === 'true'
+    // Check both old and new keys for compatibility
+    const mode = localStorage.getItem(STORAGE_KEYS.MODE) ?? localStorage.getItem(STORAGE_KEYS_DEPRECATED.MODE)
+    return mode === 'true'
   },
 
   setMode(mode) {
     localStorage.setItem(STORAGE_KEYS.MODE, mode ? 'true' : 'false')
+    localStorage.setItem(STORAGE_KEYS_DEPRECATED.MODE, mode ? 'true' : 'false')
   },
 
   // Timeline operations
@@ -52,7 +60,7 @@ export const demoStorage = {
   deleteTimeline(id) {
     const timelines = this.getTimelines().filter(t => t.id !== id)
     localStorage.setItem(STORAGE_KEYS.TIMELINES, JSON.stringify(timelines))
-    
+
     // Delete associated photos
     const photos = this.getPhotos().filter(p => p.timeline_id !== id)
     localStorage.setItem(STORAGE_KEYS.PHOTOS, JSON.stringify(photos))
@@ -72,9 +80,9 @@ export const demoStorage = {
         reject(new Error('Cannot upload photos on server'))
         return
       }
-      
+
       const reader = new FileReader()
-      
+
       reader.onload = (e) => {
         const photos = this.getPhotos()
         const newPhoto = {
@@ -91,7 +99,7 @@ export const demoStorage = {
         localStorage.setItem(STORAGE_KEYS.PHOTOS, JSON.stringify(photos))
         resolve(newPhoto)
       }
-      
+
       reader.onerror = () => reject(new Error('Failed to read file'))
       reader.readAsDataURL(file)
     })
@@ -106,8 +114,6 @@ export const demoStorage = {
   clearAll() {
     localStorage.removeItem(STORAGE_KEYS.TIMELINES)
     localStorage.removeItem(STORAGE_KEYS.PHOTOS)
+    localStorage.removeItem(STORAGE_KEYS.MODE)
   }
 }
-
-// Re-export from DemoModeProvider for convenience
-export { useDemoMode, DemoModeProvider } from './DemoModeProvider'

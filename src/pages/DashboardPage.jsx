@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { dbHelpers } from '../lib/supabase'
 import { demoStorage } from '../lib/demoStorage'
-import { Plus, Calendar, Image, LogOut, Trash2, Edit2 } from 'lucide-react'
-import { LoadingPage, Skeleton } from '../components/LoadingSpinner'
+import { Plus, Calendar, Image, LogOut, Trash2 } from 'lucide-react'
+import { LoadingPage } from '../components/LoadingSpinner'
 import { DemoModeBadge } from '../components/DemoModeBadge'
 import toast from 'react-hot-toast'
 
@@ -15,7 +15,7 @@ export const DashboardPage = () => {
   const [newTimelineTitle, setNewTimelineTitle] = useState('')
   const [newTimelineDescription, setNewTimelineDescription] = useState('')
   const [creating, setCreating] = useState(false)
-  
+
   const { user, signOut, isDemoMode, toggleDemoMode } = useAuth()
   const navigate = useNavigate()
 
@@ -31,6 +31,7 @@ export const DashboardPage = () => {
     setLoading(true)
     try {
       if (isDemoMode) {
+        // Load from localStorage
         const data = demoStorage.getTimelines()
         setTimelines(data)
       } else {
@@ -42,6 +43,7 @@ export const DashboardPage = () => {
         }
       }
     } catch (error) {
+      console.error('Failed to load timelines:', error)
       toast.error('Failed to load timelines')
     } finally {
       setLoading(false)
@@ -60,26 +62,27 @@ export const DashboardPage = () => {
           description: newTimelineDescription,
           user_id: user.id
         })
-        setTimelines([timeline, ...timelines])
+        setTimelines(prev => [timeline, ...prev])
         toast.success('Timeline created!')
       } else {
         const { data, error } = await dbHelpers.createTimeline(user.id, {
           title: newTimelineTitle,
           description: newTimelineDescription
         })
-        
+
         if (error) {
           toast.error(error)
         } else {
-          setTimelines([data, ...timelines])
+          setTimelines(prev => [data, ...prev])
           toast.success('Timeline created!')
         }
       }
-      
+
       setShowCreateModal(false)
       setNewTimelineTitle('')
       setNewTimelineDescription('')
     } catch (error) {
+      console.error('Failed to create timeline:', error)
       toast.error('Failed to create timeline')
     } finally {
       setCreating(false)
@@ -87,23 +90,24 @@ export const DashboardPage = () => {
   }
 
   const handleDeleteTimeline = async (id) => {
-    if (!confirm('Are you sure you want to delete this timeline?')) return
+    if (!confirm('Are you sure you want to delete this timeline? This will also delete all photos in it.')) return
 
     try {
       if (isDemoMode) {
         demoStorage.deleteTimeline(id)
-        setTimelines(timelines.filter(t => t.id !== id))
+        setTimelines(prev => prev.filter(t => t.id !== id))
         toast.success('Timeline deleted')
       } else {
         const { error } = await dbHelpers.deleteTimeline(id)
         if (error) {
           toast.error(error)
         } else {
-          setTimelines(timelines.filter(t => t.id !== id))
+          setTimelines(prev => prev.filter(t => t.id !== id))
           toast.success('Timeline deleted')
         }
       }
     } catch (error) {
+      console.error('Failed to delete timeline:', error)
       toast.error('Failed to delete timeline')
     }
   }
@@ -113,14 +117,23 @@ export const DashboardPage = () => {
     navigate('/')
   }
 
+  const handleDemoToggle = () => {
+    toggleDemoMode()
+    // Navigate to appropriate page based on new mode
+    if (!isDemoMode) {
+      // Switching to demo mode
+      navigate('/dashboard')
+    }
+  }
+
   if (loading) {
     return <LoadingPage text="Loading your timelines..." />
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
-      <DemoModeBadge isDemoMode={isDemoMode} onToggle={toggleDemoMode} />
-      
+      <DemoModeBadge isDemoMode={isDemoMode} onToggle={handleDemoToggle} />
+
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -163,6 +176,12 @@ export const DashboardPage = () => {
             <p className="text-gray-500 mb-6">
               Create your first timeline to start organizing your memories
             </p>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              Create Your First Timeline
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -170,11 +189,9 @@ export const DashboardPage = () => {
               <div
                 key={timeline.id}
                 className="bg-white rounded-xl shadow-md hover:shadow-xl transition-shadow overflow-hidden cursor-pointer group"
+                onClick={() => navigate(`/timeline/${timeline.id}`)}
               >
-                <div
-                  onClick={() => navigate(`/timeline/${timeline.id}`)}
-                  className="p-6"
-                >
+                <div className="p-6">
                   <div className="flex items-start justify-between mb-3">
                     <Calendar className="w-8 h-8 text-purple-600" />
                     <span className="text-sm text-gray-500">
@@ -188,11 +205,15 @@ export const DashboardPage = () => {
                     {timeline.description || 'No description'}
                   </p>
                 </div>
-                
+
                 <div className="px-6 py-3 bg-gray-50 flex items-center justify-between">
                   <div className="flex items-center gap-1 text-sm text-gray-600">
                     <Image className="w-4 h-4" />
-                    <span>{timeline.photo_count || 0} photos</span>
+                    <span>
+                      {isDemoMode
+                        ? demoStorage.getPhotos(timeline.id).length
+                        : timeline.photo_count || 0} photos
+                      </span>
                   </div>
                   <button
                     onClick={(e) => {

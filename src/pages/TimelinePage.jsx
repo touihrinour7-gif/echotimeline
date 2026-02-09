@@ -3,9 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { dbHelpers } from '../lib/supabase'
 import { demoStorage } from '../lib/demoStorage'
-import { autoSort } from '../lib/autoSort'
-import { faceDetection } from '../lib/faceDetection'
-import { ArrowLeft, Upload, Trash2, Users, Sparkles, Calendar, MapPin, X } from 'lucide-react'
+import { autoSort, faceDetection } from '../lib/faceDetection'
+import { ArrowLeft, Upload, Trash2, Users, Sparkles, Calendar, MapPin, X, Image } from 'lucide-react'
 import { LoadingPage, LoadingSpinner } from '../components/LoadingSpinner'
 import { DemoModeBadge } from '../components/DemoModeBadge'
 import toast from 'react-hot-toast'
@@ -13,8 +12,8 @@ import toast from 'react-hot-toast'
 export const TimelinePage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user, isDemoMode, toggleDemoMode } = useAuth()
-  
+  const { user, isDemoMode } = useAuth()
+
   const [timeline, setTimeline] = useState(null)
   const [photos, setPhotos] = useState([])
   const [loading, setLoading] = useState(true)
@@ -23,6 +22,7 @@ export const TimelinePage = () => {
   const [showFaceClusters, setShowFaceClusters] = useState(false)
   const [faceClusters, setFaceClusters] = useState([])
   const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const [faceApiLoaded, setFaceApiLoaded] = useState(false)
 
   useEffect(() => {
     if (!user) {
@@ -30,7 +30,18 @@ export const TimelinePage = () => {
       return
     }
     loadTimelineData()
+    loadFaceApi()
   }, [id, user, isDemoMode])
+
+  const loadFaceApi = async () => {
+    try {
+      await faceDetection.loadFaceAPI()
+      setFaceApiLoaded(true)
+    } catch (error) {
+      console.warn('Face API loading skipped:', error.message)
+      setFaceApiLoaded(false)
+    }
+  }
 
   const loadTimelineData = async () => {
     setLoading(true)
@@ -38,34 +49,41 @@ export const TimelinePage = () => {
       if (isDemoMode) {
         const timelines = demoStorage.getTimelines()
         const currentTimeline = timelines.find(t => t.id === id)
+
         if (!currentTimeline) {
           toast.error('Timeline not found')
           navigate('/dashboard')
           return
         }
+
         setTimeline(currentTimeline)
-        
+
+        // Get photos from DemoModeProvider state via demoStorage
         const timelinePhotos = demoStorage.getPhotos(id)
         setPhotos(timelinePhotos)
         setSortedPhotos(autoSort.sortByMetadata(timelinePhotos))
       } else {
         // Load from Supabase
         const { data: timelineData, error: timelineError } = await dbHelpers.getTimelines(user.id)
+
         if (timelineError) {
           toast.error(timelineError)
           navigate('/dashboard')
           return
         }
-        
+
         const currentTimeline = timelineData?.find(t => t.id === id)
+
         if (!currentTimeline) {
           toast.error('Timeline not found')
           navigate('/dashboard')
           return
         }
+
         setTimeline(currentTimeline)
-        
+
         const { data: photosData, error: photosError } = await dbHelpers.getPhotos(id)
+
         if (photosError) {
           toast.error(photosError)
         } else {
@@ -74,6 +92,7 @@ export const TimelinePage = () => {
         }
       }
     } catch (error) {
+      console.error('Failed to load timeline:', error)
       toast.error('Failed to load timeline')
       navigate('/dashboard')
     } finally {
@@ -90,7 +109,18 @@ export const TimelinePage = () => {
 
     try {
       for (const file of files) {
-        // Extract EXIF data (simplified - you'd use exif-js library in production)
+        // Validate file
+        if (!file.type.startsWith('image/')) {
+          toast.error(`${file.name} is not an image`)
+          continue
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`${file.name} is too large (max 10MB)`)
+          continue
+        }
+
+        // Extract basic metadata
         const metadata = {
           title: file.name,
           date: new Date().toISOString(),
@@ -100,14 +130,19 @@ export const TimelinePage = () => {
 
         if (isDemoMode) {
           const photo = await demoStorage.uploadPhoto(id, file, metadata)
-          setPhotos(prev => [...prev, photo])
+          const newPhotos = [...photos, photo]
+          setPhotos(newPhotos)
+          setSortedPhotos(autoSort.sortByMetadata(newPhotos))
           uploadedCount++
         } else {
           const { data, error } = await dbHelpers.uploadPhoto(id, file, metadata)
+
           if (error) {
             toast.error(`Failed to upload ${file.name}`)
           } else {
-            setPhotos(prev => [...prev, data])
+            const newPhotos = [...photos, data]
+            setPhotos(newPhotos)
+            setSortedPhotos(autoSort.sortByMetadata(newPhotos))
             uploadedCount++
           }
         }
@@ -115,11 +150,9 @@ export const TimelinePage = () => {
 
       if (uploadedCount > 0) {
         toast.success(`Uploaded ${uploadedCount} photo${uploadedCount > 1 ? 's' : ''}`)
-        // Re-sort photos
-        const newSorted = autoSort.sortByMetadata(photos)
-        setSortedPhotos(newSorted)
       }
     } catch (error) {
+      console.error('Upload error:', error)
       toast.error('Upload failed')
     } finally {
       setUploading(false)
@@ -133,31 +166,35 @@ export const TimelinePage = () => {
     try {
       if (isDemoMode) {
         demoStorage.deletePhoto(photo.id)
-        setPhotos(photos.filter(p => p.id !== photo.id))
+        const newPhotos = photos.filter(p => p.id !== photo.id)
+        setPhotos(newPhotos)
         setSortedPhotos(sortedPhotos.filter(p => p.id !== photo.id))
         toast.success('Photo deleted')
       } else {
         const { error } = await dbHelpers.deletePhoto(photo.id, photo.storage_path)
+
         if (error) {
           toast.error(error)
         } else {
-          setPhotos(photos.filter(p => p.id !== photo.id))
+          const newPhotos = photos.filter(p => p.id !== photo.id)
+          setPhotos(newPhotos)
           setSortedPhotos(sortedPhotos.filter(p => p.id !== photo.id))
           toast.success('Photo deleted')
         }
       }
     } catch (error) {
+      console.error('Delete error:', error)
       toast.error('Failed to delete photo')
     }
   }
 
-  const handleAutoSort = async () => {
-    toast.loading('Sorting photos...')
+  const handleAutoSort = () => {
+    toast.loading('Sorting photos...', { id: 'sort' })
     try {
       const sorted = autoSort.sortByMetadata(photos)
       setSortedPhotos(sorted)
       toast.dismiss()
-      toast.success('Photos sorted!')
+      toast.success('Photos sorted by date!')
     } catch (error) {
       toast.dismiss()
       toast.error('Failed to sort photos')
@@ -170,23 +207,29 @@ export const TimelinePage = () => {
       return
     }
 
-    toast.loading('Loading face detection models...')
+    if (!faceApiLoaded) {
+      toast.error('Face detection is not available')
+      return
+    }
+
+    toast.loading('Loading face detection...', { id: 'face' })
     try {
       // Check if models are loaded
       const status = await faceDetection.getStatus()
-      if (!status.loaded) {
-        toast.error('Face detection models not available')
+
+      if (!status.apiLoaded) {
         toast.dismiss()
+        toast.error('Face detection models not loaded yet')
         return
       }
 
-      toast.loading('Detecting faces in photos...')
-      
-      // Run real face clustering
+      toast.loading('Detecting faces...', { id: 'face' })
+
+      // Run face clustering
       const clusters = await faceDetection.clusterFaces(photos)
-      
+
       toast.dismiss()
-      
+
       if (clusters.length === 0) {
         toast.error('No faces detected in any photos')
       } else {
@@ -196,7 +239,8 @@ export const TimelinePage = () => {
       }
     } catch (error) {
       toast.dismiss()
-      toast.error('Face detection failed: ' + error.message)
+      console.error('Face detection error:', error)
+      toast.error('Face detection failed. Please try again.')
     }
   }
 
@@ -210,8 +254,8 @@ export const TimelinePage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
-      <DemoModeBadge isDemoMode={isDemoMode} onToggle={toggleDemoMode} />
-      
+      <DemoModeBadge isDemoMode={isDemoMode} onToggle={() => {}} />
+
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -261,7 +305,8 @@ export const TimelinePage = () => {
             </button>
             <button
               onClick={handleDetectFaces}
-              className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+              disabled={!faceApiLoaded}
+              className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Users className="w-4 h-4" />
               Face Clusters
@@ -280,7 +325,7 @@ export const TimelinePage = () => {
 
         {photos.length === 0 ? (
           <div className="text-center py-16">
-            <Upload className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <Image className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-700 mb-2">
               No photos yet
             </h3>
@@ -300,49 +345,55 @@ export const TimelinePage = () => {
             </label>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {sortedPhotos.map((photo) => (
-              <div
-                key={photo.id}
-                className="bg-white rounded-lg shadow-md overflow-hidden group cursor-pointer hover:shadow-xl transition-shadow"
-                onClick={() => setSelectedPhoto(photo)}
-              >
-                <div className="aspect-square relative">
-                  <img
-                    src={photo.url}
-                    alt={photo.title || 'Photo'}
-                    className="w-full h-full object-cover"
-                  />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeletePhoto(photo)
-                    }}
-                    className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+          <>
+            <div className="mb-4 text-sm text-gray-600">
+              {photos.length} photo{photos.length !== 1 ? 's' : ''}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {sortedPhotos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="bg-white rounded-lg shadow-md overflow-hidden group cursor-pointer hover:shadow-xl transition-shadow"
+                  onClick={() => setSelectedPhoto(photo)}
+                >
+                  <div className="aspect-square relative">
+                    <img
+                      src={photo.url}
+                      alt={photo.title || 'Photo'}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeletePhoto(photo)
+                      }}
+                      className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="p-3">
+                    <h4 className="font-semibold text-gray-900 text-sm truncate">
+                      {photo.title || 'Untitled'}
+                    </h4>
+                    {photo.date && (
+                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(photo.date).toLocaleDateString()}
+                      </p>
+                    )}
+                    {photo.location && (
+                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        {photo.location}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="p-3">
-                  <h4 className="font-semibold text-gray-900 text-sm truncate">
-                    {photo.title || 'Untitled'}
-                  </h4>
-                  {photo.date && (
-                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {new Date(photo.date).toLocaleDateString()}
-                    </p>
-                  )}
-                  {photo.location && (
-                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {photo.location}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
 
         {/* Face Clusters Modal */}
@@ -358,7 +409,7 @@ export const TimelinePage = () => {
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              
+
               {faceClusters.length === 0 ? (
                 <p className="text-gray-600 text-center py-8">No faces detected</p>
               ) : (
@@ -377,6 +428,7 @@ export const TimelinePage = () => {
                               src={photo.url}
                               alt="Face"
                               className="aspect-square object-cover rounded"
+                              loading="lazy"
                             />
                           ) : null
                         })}
