@@ -19,6 +19,11 @@ const ProtectedRoute = ({ children }) => {
     return <LoadingPage text="Loading..." />
   }
 
+  // Redirect to login if no user (except in demo mode which sets user)
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
   return children
 }
 

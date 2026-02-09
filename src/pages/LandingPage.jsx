@@ -1,15 +1,23 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useDemoMode } from '../lib/demoStorage'
 import Logo from '../components/Logo'
+import toast from 'react-hot-toast'
 
 export function LandingPage() {
   const { enableDemoMode, isDemoMode } = useDemoMode()
   const [mounted, setMounted] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  const handleDemoMode = () => {
+    enableDemoMode()
+    toast.success('Demo mode activated!')
+    navigate('/dashboard')
+  }
 
   const features = [
     {
@@ -91,7 +99,7 @@ export function LandingPage() {
               Start Free
             </Link>
             <button
-              onClick={enableDemoMode}
+              onClick={handleDemoMode}
               className="px-8 py-4 border border-border rounded-xl font-medium text-lg hover:bg-secondary transition-colors"
             >
               Try Demo Mode
@@ -156,7 +164,7 @@ export function LandingPage() {
               Get Started Free
             </Link>
             <button
-              onClick={enableDemoMode}
+              onClick={handleDemoMode}
               className="px-8 py-4 border border-border rounded-xl font-medium text-lg hover:bg-secondary transition-colors"
             >
               Try Demo First
