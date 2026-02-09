@@ -243,6 +243,7 @@ export const TimelinePage = () => {
 
     toast.loading('Detecting faces...', { id: 'face' })
 
+    try {
       // Run face clustering
       const clusters = await faceDetection.clusterFaces(photos)
 
