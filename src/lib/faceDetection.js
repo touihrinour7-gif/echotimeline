@@ -58,15 +58,28 @@ export const autoSort = {
 
 let faceapi = null
 let modelsLoaded = false
+let modelsLoading = false
 
 export const faceDetection = {
   async loadFaceAPI() {
+    // Return immediately if already loaded
     if (faceapi) return faceapi
 
-    // Check if already loaded
+    // Check if already loaded globally
     if (typeof window !== 'undefined' && window.faceapi) {
       faceapi = window.faceapi
       return faceapi
+    }
+
+    // Prevent multiple simultaneous loads
+    if (typeof window !== 'undefined' && modelsLoading) {
+      // Wait for existing load to complete
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      return faceapi
+    }
+
+    if (typeof window !== 'undefined') {
+      modelsLoading = true
     }
 
     // Load face-api.js from CDN
@@ -76,18 +89,33 @@ export const faceDetection = {
       script.onload = async () => {
         // @ts-ignore - face-api loaded globally
         faceapi = window.faceapi
+        modelsLoading = false
+        console.log('Face-API.js loaded successfully')
         resolve(faceapi)
       }
-      script.onerror = () => reject(new Error('Failed to load face-api.js'))
+      script.onerror = () => {
+        modelsLoading = false
+        reject(new Error('Failed to load face-api.js from CDN'))
+      }
       document.head.appendChild(script)
     })
   },
 
   async loadModels() {
+    // Return immediately if already loaded
     if (modelsLoaded) return true
+
+    // Prevent multiple simultaneous loads
+    if (modelsLoading) {
+      await new Promise(resolve => setTimeout(resolve, 500))
+      return modelsLoaded
+    }
 
     try {
       const api = await this.loadFaceAPI()
+      modelsLoading = true
+
+      // Models are served from /models directory in public folder
       const MODEL_URL = '/models'
 
       await Promise.all([
@@ -97,9 +125,11 @@ export const faceDetection = {
       ])
 
       modelsLoaded = true
-      console.log('Face detection models loaded')
+      modelsLoading = false
+      console.log('Face detection models loaded successfully')
       return true
     } catch (error) {
+      modelsLoading = false
       console.error('Failed to load face detection models:', error)
       return false
     }
@@ -132,10 +162,12 @@ export const faceDetection = {
     if (!photos || photos.length === 0) return []
 
     try {
+      // Load face-api if needed
       if (!faceapi) {
         await this.loadFaceAPI()
       }
 
+      // Load models if needed
       if (!modelsLoaded) {
         await this.loadModels()
       }
@@ -150,11 +182,16 @@ export const faceDetection = {
         const img = new Image()
         img.crossOrigin = 'anonymous'
         img.src = photo.url
-        await new Promise((resolve) => {
-          img.onload = resolve
-          img.onerror = resolve // Continue even if load fails
-        })
-        imageElements.push({ photo, img })
+
+        try {
+          await new Promise((resolve, reject) => {
+            img.onload = resolve
+            img.onerror = resolve // Continue even if load fails
+          })
+          imageElements.push({ photo, img })
+        } catch (e) {
+          console.warn(`Could not load image ${photo.id}`)
+        }
       }
 
       // Detect faces in all images
@@ -173,6 +210,11 @@ export const faceDetection = {
         } catch (e) {
           console.warn(`Could not detect faces in photo ${photo.id}`)
         }
+      }
+
+      // If no faces detected, return empty clusters
+      if (detectionsMap.length === 0) {
+        return []
       }
 
       // Cluster faces by similarity
@@ -225,7 +267,8 @@ export const faceDetection = {
   async getStatus() {
     return {
       loaded: modelsLoaded,
-      apiLoaded: faceapi !== null && typeof faceapi !== 'undefined'
+      apiLoaded: faceapi !== null && typeof faceapi !== 'undefined',
+      loading: modelsLoading
     }
   }
 }
