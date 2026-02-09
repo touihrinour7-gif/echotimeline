@@ -121,6 +121,7 @@ export const TimelinePage = () => {
 
     setUploading(true)
     let uploadedCount = 0
+    const newPhotos = []
 
     try {
       for (const file of files) {
@@ -145,9 +146,7 @@ export const TimelinePage = () => {
 
         if (isDemoMode) {
           const photo = await demoStorage.uploadPhoto(id, file, metadata)
-          const newPhotos = [...photos, photo]
-          setPhotos(newPhotos)
-          setSortedPhotos(autoSort.sortByMetadata(newPhotos))
+          newPhotos.push(photo)
           uploadedCount++
         } else {
           const { data, error } = await dbHelpers.uploadPhoto(id, file, metadata)
@@ -155,15 +154,17 @@ export const TimelinePage = () => {
           if (error) {
             toast.error(`Failed to upload ${file.name}`)
           } else {
-            const newPhotos = [...photos, data]
-            setPhotos(newPhotos)
-            setSortedPhotos(autoSort.sortByMetadata(newPhotos))
+            newPhotos.push(data)
             uploadedCount++
           }
         }
       }
 
-      if (uploadedCount > 0) {
+      // Update state ONCE after all uploads complete
+      if (newPhotos.length > 0) {
+        const updatedPhotos = [...photos, ...newPhotos]
+        setPhotos(updatedPhotos)
+        setSortedPhotos(autoSort.sortByMetadata(updatedPhotos))
         toast.success(`Uploaded ${uploadedCount} photo${uploadedCount > 1 ? 's' : ''}`)
       }
     } catch (error) {
