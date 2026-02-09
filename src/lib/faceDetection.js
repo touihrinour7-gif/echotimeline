@@ -1,88 +1,36 @@
-// Face detection using face-api.js (ES Module version)
-// Properly configured for Vite
+// Face detection using face-api.js (globally loaded)
 
 let faceapi = null
 let modelsLoaded = false
 let modelsLoading = false
-
-// ES Module CDN URL
-const FACEAPI_ESM_URL = 'https://unpkg.com/face-api.js@0.22.2/dist/face-api.esm.js'
+let modelsLoadPromise = null
 
 export const faceDetection = {
   async loadFaceAPI() {
     // Return immediately if already loaded
     if (faceapi) return faceapi
     
-    // Check if already loaded globally
+    // Check if already loaded globally (from index.html script)
     if (typeof window !== 'undefined' && window.faceapi) {
       faceapi = window.faceapi
       return faceapi
     }
     
-    // Prevent multiple simultaneous loads
-    if (typeof window !== 'undefined' && modelsLoading) {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      return faceapi
-    }
-    
-    if (typeof window !== 'undefined') {
-      modelsLoading = true
-    }
-    
-    try {
-      // Load as ES module using dynamic import
-      const module = await import(FACEAPI_ESM_URL)
-      
-      // Get the faceapi from the module
-      faceapi = module.default || module.faceapi || module
-      
-      if (!faceapi || typeof faceapi !== 'object') {
-        throw new Error('face-api.js ES module failed to initialize')
-      }
-      
-      modelsLoading = false
-      console.log('Face-API.js ES module loaded successfully')
-      return faceapi
-    } catch (error) {
-      modelsLoading = false
-      console.error('Failed to load face-api.js ES module:', error)
-      
-      // Fallback: try loading from global script
-      try {
-        await this.loadFaceAPIFallback()
-      } catch (fallbackError) {
-        throw new Error('Failed to load face-api.js from all sources')
-      }
-    }
-  },
-  
-  async loadFaceAPIFallback() {
+    // If script is still loading, wait for it
     return new Promise((resolve, reject) => {
-      // Clear any existing scripts to prevent duplicates
-      const existingScript = document.querySelector('script[src*="face-api"]')
-      if (existingScript) {
-        existingScript.remove()
-      }
-      
-      const script = document.createElement('script')
-      script.src = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js'
-      script.crossOrigin = 'anonymous'
-      
-      script.onload = () => {
-        faceapi = window.faceapi
-        if (faceapi) {
-          console.log('Face-API.js loaded via fallback')
+      const checkInterval = setInterval(() => {
+        if (window.faceapi) {
+          clearInterval(checkInterval)
+          faceapi = window.faceapi
           resolve(faceapi)
-        } else {
-          reject(new Error('face-api.js not found on window'))
         }
-      }
+      }, 100)
       
-      script.onerror = () => {
-        reject(new Error('Failed to load face-api.js fallback'))
-      }
-      
-      document.head.appendChild(script)
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        clearInterval(checkInterval)
+        reject(new Error('Face-API.js failed to load from CDN'))
+      }, 10000)
     })
   },
 
@@ -90,34 +38,36 @@ export const faceDetection = {
     // Return immediately if already loaded
     if (modelsLoaded) return true
     
-    // Prevent multiple simultaneous loads
-    if (modelsLoading) {
-      await new Promise(resolve => setTimeout(resolve, 500))
-      return modelsLoaded
-    }
+    // Return existing promise if already loading
+    if (modelsLoadPromise) return modelsLoadPromise
     
-    try {
-      const api = await this.loadFaceAPI()
-      modelsLoading = true
-      
-      // Models are served from /models directory in public folder
-      const MODEL_URL = '/models'
-      
-      await Promise.all([
-        api.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        api.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        api.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-      ])
-      
-      modelsLoaded = true
-      modelsLoading = false
-      console.log('Face detection models loaded successfully')
-      return true
-    } catch (error) {
-      modelsLoading = false
-      console.error('Failed to load face detection models:', error)
-      return false
-    }
+    modelsLoadPromise = (async () => {
+      try {
+        const api = await this.loadFaceAPI()
+        modelsLoading = true
+        
+        // Models are served from /models directory in public folder
+        const MODEL_URL = '/models'
+        
+        await Promise.all([
+          api.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          api.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          api.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ])
+        
+        modelsLoaded = true
+        modelsLoading = false
+        console.log('✅ Face detection models loaded successfully')
+        return true
+      } catch (error) {
+        modelsLoading = false
+        modelsLoadPromise = null
+        console.error('❌ Failed to load face detection models:', error)
+        return false
+      }
+    })()
+    
+    return modelsLoadPromise
   },
 
   async detectFaces(imageElement) {
@@ -199,8 +149,11 @@ export const faceDetection = {
       
       // If no faces detected, return empty clusters
       if (detectionsMap.length === 0) {
+        console.log('No faces detected in any photos')
         return []
       }
+      
+      console.log(`Detected faces in ${detectionsMap.length} photos`)
       
       // Cluster faces by similarity
       for (const { photoId, descriptor } of detectionsMap) {
@@ -228,9 +181,10 @@ export const faceDetection = {
         }
       }
       
+      console.log(`Created ${faceClusters.length} face clusters`)
       return faceClusters
     } catch (error) {
-      console.error('Face clustering error:', error)
+      console.error('❌ Face clustering error:', error)
       return []
     }
   },
@@ -253,12 +207,13 @@ export const faceDetection = {
     return {
       loaded: modelsLoaded,
       apiLoaded: faceapi !== null && typeof faceapi !== 'undefined',
-      loading: modelsLoading
+      loading: modelsLoading,
+      modelsLoadPromise: modelsLoadPromise !== null
     }
   }
 }
 
-// Auto-Sort using simple metadata-based sorting (free)
+// Auto-Sort using simple metadata-based sorting
 export const autoSort = {
   sortByMetadata(photos) {
     return [...photos].sort((a, b) => {
