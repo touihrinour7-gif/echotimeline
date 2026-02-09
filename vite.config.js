@@ -15,6 +15,9 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000
   },
   optimizeDeps: {
-    exclude: ['lucide-react']
+    exclude: ['face-api.js']
+  },
+  ssr: {
+    noExternal: ['face-api.js']
   }
 })
