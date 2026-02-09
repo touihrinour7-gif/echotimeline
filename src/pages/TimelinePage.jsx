@@ -38,10 +38,22 @@ export const TimelinePage = () => {
 
   const loadFaceApi = async () => {
     try {
+      const status = await faceDetection.getStatus()
+      
+      if (status.apiLoaded) {
+        // API already loaded
+        setFaceApiLoaded(true)
+        return
+      }
+      
+      // Try to load the API
       await faceDetection.loadFaceAPI()
-      setFaceApiLoaded(true)
+      
+      // Now load the models
+      const modelsLoaded = await faceDetection.loadModels()
+      setFaceApiLoaded(modelsLoaded)
     } catch (error) {
-      console.warn('Face API loading skipped:', error.message)
+      console.warn('Face API loading failed:', error.message)
       setFaceApiLoaded(false)
     }
   }
@@ -210,23 +222,25 @@ export const TimelinePage = () => {
       return
     }
 
+    // Try to load face detection if not loaded yet
     if (!faceApiLoaded) {
-      toast.error('Face detection is not available')
-      return
-    }
-
-    toast.loading('Loading face detection...', { id: 'face' })
-    try {
-      // Check if models are loaded
-      const status = await faceDetection.getStatus()
-
-      if (!status.apiLoaded) {
+      toast.loading('Loading face detection...', { id: 'face' })
+      try {
+        await loadFaceApi()
+        
+        if (!faceApiLoaded) {
+          toast.dismiss()
+          toast.error('Face detection failed to load. Please refresh the page.')
+          return
+        }
+      } catch (error) {
         toast.dismiss()
-        toast.error('Face detection models not loaded yet')
+        toast.error('Face detection unavailable. Check your connection.')
         return
       }
+    }
 
-      toast.loading('Detecting faces...', { id: 'face' })
+    toast.loading('Detecting faces...', { id: 'face' })
 
       // Run face clustering
       const clusters = await faceDetection.clusterFaces(photos)
@@ -421,8 +435,8 @@ export const TimelinePage = () => {
             </button>
             <button
               onClick={handleDetectFaces}
-              disabled={!faceApiLoaded}
-              className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+              title={faceApiLoaded ? 'Detect and cluster faces' : 'Click to load face detection'}
             >
               <Users className="w-4 h-4" />
               Face Clusters
