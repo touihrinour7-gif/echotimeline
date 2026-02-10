@@ -4,7 +4,13 @@
   "version": "2.0.0",
   "type": "module",
   "description": "AI-powered photo timeline manager - Organize your memories with smart face detection and auto-sorting",
-  "keywords": ["photo timeline", "photo organizer", "ai photo manager", "face detection", "memory timeline"],
+  "keywords": [
+    "photo timeline",
+    "photo organizer",
+    "ai photo manager",
+    "face detection",
+    "memory timeline"
+  ],
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
@@ -17,14 +23,15 @@
     "lucide-react": "^0.300.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.1",
-    "react-hot-toast": "^2.4.1",
     "react-helmet-async": "^2.0.4",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.21.1",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.16",
+    "esbuild": "^0.20.0",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
     "vite": "^5.0.11"

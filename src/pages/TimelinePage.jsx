@@ -1,10 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { dbHelpers } from '../lib/supabase'
 import { demoStorage } from '../lib/demoStorage'
 import { autoSort, faceDetection } from '../lib/faceDetection'
-import { ArrowLeft, Upload, Trash2, Users, Sparkles, Calendar, MapPin, X, Image, Download, Upload as UploadIcon, Filter, Grid, List, Heart } from 'lucide-react'
+import { 
+  ArrowLeft, Upload, Trash2, Users, Sparkles, 
+  X, Image, Download, Grid, List, Heart 
+} from 'lucide-react'
 import { LoadingPage, LoadingSpinner } from '../components/LoadingSpinner'
 import { DemoModeBadge } from '../components/DemoModeBadge'
 import Logo from '../components/Logo'
@@ -24,52 +27,34 @@ export const TimelinePage = () => {
   const [showFaceClusters, setShowFaceClusters] = useState(false)
   const [faceClusters, setFaceClusters] = useState([])
   const [selectedPhoto, setSelectedPhoto] = useState(null)
-  const [faceApiLoaded, setFaceApiLoaded] = useState(false)
-  const [showImportModal, setShowImportModal] = useState(false)
-  const [viewMode, setViewMode] = useState('grid') // grid or masonry
-  const [sortBy, setSortBy] = useState('date') // date, name, custom
-  const importInputRef = useRef(null)
+  const [viewMode, setViewMode] = useState('grid')
   const fileInputRef = useRef(null)
 
-  useEffect(() => {
-    if (!user) {
-      navigate('/')
-      return
-    }
-    loadTimelineData()
-  }, [id, user, isDemoMode])
-
-  const loadTimelineData = async () => {
+  // Load timeline data
+  const loadTimelineData = useCallback(async () => {
     setLoading(true)
     try {
       if (isDemoMode) {
         const timelines = demoStorage.getTimelines()
         const currentTimeline = timelines.find(t => t.id === id)
-
         if (!currentTimeline) {
           toast.error('Timeline not found')
           navigate('/dashboard')
           return
         }
-
         setTimeline(currentTimeline)
-
         const timelinePhotos = demoStorage.getPhotos(id)
         setPhotos(timelinePhotos)
         setSortedPhotos(autoSort.sortByMetadata(timelinePhotos))
       } else {
         const { data: timelineData, error: timelineError } = await dbHelpers.getTimeline(id, user.id)
-
         if (timelineError) {
           toast.error(timelineError)
           navigate('/dashboard')
           return
         }
-
         setTimeline(timelineData)
-
         const { data: photosData, error: photosError } = await dbHelpers.getPhotos(id)
-
         if (photosError) {
           toast.error(photosError)
         } else {
@@ -84,10 +69,19 @@ export const TimelinePage = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, user, isDemoMode, navigate])
 
+  useEffect(() => {
+    if (!user) {
+      navigate('/')
+      return
+    }
+    loadTimelineData()
+  }, [user, id, isDemoMode, navigate, loadTimelineData])
+
+  // Handle file upload
   const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files)
+    const files = Array.from(e.target.files || [])
     if (files.length === 0) return
 
     setUploading(true)
@@ -119,7 +113,6 @@ export const TimelinePage = () => {
           uploadedCount++
         } else {
           const { data, error } = await dbHelpers.uploadPhoto(id, file, metadata)
-
           if (error) {
             toast.error(`Failed to upload ${file.name}`)
           } else {
@@ -140,10 +133,13 @@ export const TimelinePage = () => {
       toast.error('Upload failed')
     } finally {
       setUploading(false)
-      e.target.value = ''
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     }
   }
 
+  // Handle delete photo
   const handleDeletePhoto = async (photo) => {
     if (!confirm('Are you sure you want to delete this photo?')) return
 
@@ -156,7 +152,6 @@ export const TimelinePage = () => {
         toast.success('Photo deleted')
       } else {
         const { error } = await dbHelpers.deletePhoto(photo.id, photo.storage_path)
-
         if (error) {
           toast.error(error)
         } else {
@@ -172,6 +167,7 @@ export const TimelinePage = () => {
     }
   }
 
+  // Handle auto sort
   const handleAutoSort = () => {
     toast.loading('Sorting photos...', { id: 'sort' })
     try {
@@ -185,6 +181,7 @@ export const TimelinePage = () => {
     }
   }
 
+  // Handle face detection
   const handleDetectFaces = async () => {
     if (photos.length === 0) {
       toast.error('No photos to analyze')
@@ -195,11 +192,8 @@ export const TimelinePage = () => {
     try {
       await faceDetection.loadFaceAPI()
       await faceDetection.loadModels()
-      
       toast.loading('Detecting faces...', { id: 'face' })
-      
       const clusters = await faceDetection.clusterFaces(photos)
-
       toast.dismiss('face')
 
       if (clusters.length === 0) {
@@ -311,18 +305,6 @@ export const TimelinePage = () => {
               <Users className="w-4 h-4" />
               <span>Face Clusters</span>
             </motion.button>
-
-            {photos.length > 0 && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleExport}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-xl font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-all whitespace-nowrap"
-              >
-                <Download className="w-4 h-4" />
-                <span>Export</span>
-              </motion.button>
-            )}
           </div>
         </div>
       </header>
@@ -401,22 +383,6 @@ export const TimelinePage = () => {
               <p className="text-gray-600 dark:text-gray-400">
                 <span className="font-semibold text-gray-900 dark:text-white">{photos.length}</span> photo{photos.length !== 1 ? 's' : ''}
               </p>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Filter className="w-4 h-4" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => {
-                    setSortBy(e.target.value)
-                    if (e.target.value === 'date') {
-                      setSortedPhotos(autoSort.sortByMetadata(photos))
-                    }
-                  }}
-                  className="bg-transparent border-none outline-none cursor-pointer"
-                >
-                  <option value="date">Sort by Date</option>
-                  <option value="name">Sort by Name</option>
-                </select>
-              </div>
             </motion.div>
 
             {/* Photos Grid */}
